@@ -53,7 +53,7 @@ class Config:
             else None
         )
 
-    def get_uma_domain() -> str:
+    def get_uma_domain(self) -> str:
         uma_domain = os.environ.get("LIGHTSPARK_UMA_VASP_DOMAIN")
         if uma_domain:
             return uma_domain

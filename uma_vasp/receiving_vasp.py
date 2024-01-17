@@ -35,9 +35,11 @@ class ReceivingVasp:
             # TODO: Fallback to raw lnurl.
             print("Not a UMA LNURLP query")
 
+        print(f"Handling UMA LNURLP query for user {username}")
         try:
-            lnulp_request = parse_lnurlp_request(request.url)
+            lnurlp_request = parse_lnurlp_request(request.url)
         except Exception as e:
+            print(f"Invalid UMA lnurlp request: {e}")
             abort(
                 400,
                 {
@@ -48,14 +50,14 @@ class ReceivingVasp:
 
         try:
             sender_vasp_signing_pubkey = fetch_public_key_for_vasp(
-                lnulp_request.vasp_domain, self.vasp_pubkey_cache
+                lnurlp_request.vasp_domain, self.vasp_pubkey_cache
             ).signing_pubkey
         except Exception as e:
             abort(
                 424,
                 {
                     "status": "ERROR",
-                    "reason": f"Cannot fetch public key for vasp {lnulp_request.vasp_domain}: {e}",
+                    "reason": f"Cannot fetch public key for vasp {lnurlp_request.vasp_domain}: {e}",
                 },
             )
 
@@ -65,13 +67,13 @@ class ReceivingVasp:
                 404,
                 {
                     "status": "ERROR",
-                    "reason": f"Cannot find user {lnulp_request.receiver_address}",
+                    "reason": f"Cannot find user {lnurlp_request.receiver_address}",
                 },
             )
 
         try:
             verify_uma_lnurlp_query_signature(
-                request=request,
+                request=lnurlp_request,
                 other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
             )
         except Exception as e:
@@ -92,7 +94,7 @@ class ReceivingVasp:
         callback = self._get_complete_url(PAY_REQUEST_CALLBACK + user.id)
 
         response = create_lnurlp_response(
-            request=request,
+            request=lnurlp_request,
             signing_private_key=self.config.get_signing_privkey(),
             requires_travel_rule_info=True,
             callback=callback,
@@ -104,12 +106,12 @@ class ReceivingVasp:
             receiver_kyc_status=KycStatus.VERIFIED,
         )
 
-        return response
+        return response.to_dict()
 
     def _create_metadata(self, user: User) -> str:
         metadata = [
             ["text/plain", f"Pay to {self.config.get_uma_domain()} user {user.name}"],
-            ["text/identifier", user.get_uma_address()],
+            ["text/identifier", user.get_uma_address(self.config)],
         ]
         return json.dumps(metadata)
 
