@@ -2,3 +2,4 @@
 .pyre/
 lightspark.egg-info/
 dist/
+.vscode/

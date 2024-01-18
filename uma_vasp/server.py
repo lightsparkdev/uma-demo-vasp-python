@@ -7,6 +7,10 @@ from uma_vasp.config import Config
 from uma_vasp.demo.demo_user_service import DemoUserService
 from uma_vasp.receiving_vasp import ReceivingVasp
 from uma_vasp.receiving_vasp import register_routes as register_receiving_vasp_routes
+from uma_vasp.sending_vasp import (
+    SendingVasp,
+    register_routes as register_sending_vasp_routes,
+)
 
 user_service = DemoUserService()
 config = Config()
@@ -19,6 +23,13 @@ lightspark_client = LightsparkSyncClient(
 )
 
 receiving_vasp = ReceivingVasp(
+    user_service=user_service,
+    lightspark_client=lightspark_client,
+    pubkey_cache=pubkey_cache,
+    config=config,
+)
+
+sending_vasp = SendingVasp(
     user_service=user_service,
     lightspark_client=lightspark_client,
     pubkey_cache=pubkey_cache,
@@ -42,3 +53,4 @@ def handle_utxo_callback():
 
 
 register_receiving_vasp_routes(receiving_vasp)
+register_sending_vasp_routes(sending_vasp)
