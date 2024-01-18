@@ -49,6 +49,9 @@ class Config:
         parts = request.url_root.split("/")
         return parts[-2]
 
+    def get_complete_url(self, path: str) -> str:
+        return f"http://{self.get_uma_domain()}{path}"
+
 
 def require_env(env_var_name):
     value = os.environ.get(env_var_name)

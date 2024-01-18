@@ -40,7 +40,6 @@ class InMemorySendingVaspRequestCache(ISendingVaspRequestCache):
 
     def save_pay_req_data(
         self,
-        receiver_uma_address: str,
         encoded_invoice: str,
         utxo_callback: str,
         invoice_data: InvoiceData,
@@ -48,7 +47,6 @@ class InMemorySendingVaspRequestCache(ISendingVaspRequestCache):
     ) -> str:
         uuid = str(uuid4())
         self.payreq_data[uuid] = SendingVaspPayReqData(
-            receiver_uma_address=receiver_uma_address,
             encoded_invoice=encoded_invoice,
             utxo_callback=utxo_callback,
             invoice_data=invoice_data,

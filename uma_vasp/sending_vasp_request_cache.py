@@ -19,7 +19,6 @@ class SendingVaspInitialRequestData:
 class SendingVaspPayReqData:
     """This is the data that we cache for the payreq request."""
 
-    receiver_uma_address: str
     encoded_invoice: str
     utxo_callback: str
     invoice_data: InvoiceData
@@ -33,15 +32,16 @@ class ISendingVaspRequestCache(ABC):
     """
 
     @abstractmethod
-    def get_lnurlp_response_data(uuid: str) -> Optional[SendingVaspInitialRequestData]:
+    def get_lnurlp_response_data(self, uuid: str) -> Optional[SendingVaspInitialRequestData]:
         pass
 
     @abstractmethod
-    def get_pay_req_data(uuid: str) -> Optional[SendingVaspPayReqData]:
+    def get_pay_req_data(self, uuid: str) -> Optional[SendingVaspPayReqData]:
         pass
 
     @abstractmethod
     def save_lnurlp_response_data(
+        self,
         lnurlp_response: LnurlpResponse,
         receiver_id: str,
         receiving_vasp_domain: str,
@@ -50,7 +50,7 @@ class ISendingVaspRequestCache(ABC):
 
     @abstractmethod
     def save_pay_req_data(
-        receiver_uma_address: str,
+        self,
         encoded_invoice: str,
         utxo_callback: str,
         invoice_data: InvoiceData,

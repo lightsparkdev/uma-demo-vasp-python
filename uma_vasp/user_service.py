@@ -16,5 +16,5 @@ class IUserService(ABC):
     @abstractmethod
     def get_calling_user_from_request(
         self, request_url: str, request_headers: dict
-    ) -> User:
+    ) -> Optional[User]:
         pass

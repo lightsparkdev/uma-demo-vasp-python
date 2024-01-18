@@ -38,7 +38,7 @@ class DemoUserService(IUserService):
 
     def get_calling_user_from_request(
         self, request_url: str, request_headers: dict
-    ) -> User:
+    ) -> Optional[User]:
         expected_password = os.environ.get("LIGHTSPARK_UMA_RECEIVER_USER_PASSWORD")
         if not expected_password:
             print(
@@ -62,3 +62,5 @@ class DemoUserService(IUserService):
         # TODO: Consider using a different password for each user.
         if password != expected_password:
             return None
+
+        return user

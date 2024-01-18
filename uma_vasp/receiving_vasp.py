@@ -2,7 +2,6 @@ import json
 
 from flask import abort
 from flask import request as flask_request
-from lightspark import LightsparkNode
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
     IPublicKeyCache,
@@ -20,6 +19,7 @@ from uma import (
     verify_pay_request_signature,
     verify_uma_lnurlp_query_signature,
 )
+from uma_vasp.address_helpers import get_domain_from_uma_address
 
 from uma_vasp.app import app
 from uma_vasp.config import Config
@@ -29,6 +29,7 @@ from uma_vasp.currencies import (
     MSATS_PER_UNIT,
     RECEIVER_FEES_MSATS,
 )
+from uma_vasp.lightspark_helpers import get_node
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
 
@@ -111,7 +112,7 @@ class ReceivingVasp:
             email_required=False,
             compliance_required=True,
         )
-        callback = self._get_complete_url(PAY_REQUEST_CALLBACK + user.id)
+        callback = self.config.get_complete_url(PAY_REQUEST_CALLBACK + user.id)
 
         response = create_lnurlp_response(
             request=lnurlp_request,
@@ -161,7 +162,7 @@ class ReceivingVasp:
                 },
             )
 
-        vasp_domain = self._get_domain_from_uma_address(request.payer_data.identifier)
+        vasp_domain = get_domain_from_uma_address(request.payer_data.identifier)
         sender_vasp_signing_pubkey = fetch_public_key_for_vasp(
             vasp_domain=vasp_domain,
             cache=self.vasp_pubkey_cache,
@@ -185,7 +186,7 @@ class ReceivingVasp:
                 },
             )
         receiver_fees_msats = RECEIVER_FEES_MSATS[request.currency_code]
-        node = self._get_node()
+        node = get_node(self.lightspark_client, self.config.node_id)
 
         return create_pay_req_response(
             request=request,
@@ -199,21 +200,8 @@ class ReceivingVasp:
             receiver_fees_msats=receiver_fees_msats,
             receiver_node_pubkey=node.public_key,
             receiver_utxos=node.uma_prescreening_utxos,
-            utxo_callback=self._get_complete_url("/api/uma/utxoCallback?txid=12345"),
+            utxo_callback=self.config.get_complete_url("/api/uma/utxoCallback?txid=12345"),
         ).to_dict()
-
-    def _get_domain_from_uma_address(self, uma_address: str) -> str:
-        try:
-            [_, domain] = uma_address.split("@")
-            return domain
-        except ValueError as ex:
-            abort(
-                400,
-                {
-                    "status": "ERROR",
-                    "reason": f"Invalid UMA address: {ex}",
-                },
-            )
 
     def _create_metadata(self, user: User) -> str:
         metadata = [
@@ -221,15 +209,6 @@ class ReceivingVasp:
             ["text/identifier", user.get_uma_address(self.config)],
         ]
         return json.dumps(metadata)
-
-    def _get_complete_url(self, path: str) -> str:
-        return f"http://{self.config.get_uma_domain()}{path}"
-
-    def _get_node(self) -> LightsparkNode:
-        node = self.lightspark_client.get_entity(self.config.node_id, LightsparkNode)
-        if not node:
-            raise Exception(f"Cannot find node {self.config.node_id}")
-        return node
 
 
 class LightsparkInvoiceCreator(IUmaInvoiceCreator):
