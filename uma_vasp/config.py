@@ -31,7 +31,9 @@ class Config:
     def require_env(self, env_var_name):
         value = os.environ.get(env_var_name)
         if value is None:
-            raise Exception(f"Missing required environment variable: {env_var_name}")
+            raise MissingEnvironmentVariableException(
+                f"Missing required environment variable: {env_var_name}"
+            )
         return value
 
     def get_encryption_pubkey(self):
@@ -54,9 +56,13 @@ class Config:
         )
 
     def get_uma_domain(self) -> str:
-        uma_domain = os.environ.get("LIGHTSPARK_UMA_VASP_DOMAIN")
-        if uma_domain:
-            return uma_domain
+        # uma_domain = os.environ.get("LIGHTSPARK_UMA_VASP_DOMAIN")
+        # if uma_domain:
+        #     return uma_domain
 
         parts = request.url_root.split("/")
         return parts[-2]
+
+
+class MissingEnvironmentVariableException(Exception):
+    pass

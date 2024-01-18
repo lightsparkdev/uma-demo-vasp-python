@@ -1,15 +1,23 @@
 from flask import request
-from uma_vasp.config import Config
+from lightspark import LightsparkSyncClient
 
-from uma_vasp.demo.demo_use_service import DemoUserService
-from uma_vasp.receiving_vasp import ReceivingVasp
 from uma_vasp.app import app
+from uma_vasp.config import Config
+from uma_vasp.demo.demo_user_service import DemoUserService
+from uma_vasp.receiving_vasp import ReceivingVasp
+from uma_vasp.receiving_vasp import register_routes as register_receiving_vasp_routes
 
 user_service = DemoUserService()
 config = Config()
+lightspark_client = LightsparkSyncClient(
+    api_token_client_id=config.api_token_client_id,
+    api_token_client_secret=config.api_token_client_secret,
+    http_host=config.base_url,
+)
 
 receiving_vasp = ReceivingVasp(
     user_service=user_service,
+    lightspark_client=lightspark_client,
     config=config,
 )
 
@@ -29,6 +37,4 @@ def handle_utxo_callback():
     return "OK"
 
 
-@app.route("/.well-known/lnurlp/<username>")
-def handle_lnurlp_request(username: str):
-    return receiving_vasp.handle_lnurlp_request(username)
+register_receiving_vasp_routes(receiving_vasp)

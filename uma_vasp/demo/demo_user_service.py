@@ -1,7 +1,9 @@
 from typing import Optional
+
+from uma import KycStatus
+
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
-from uma import KycStatus
 
 USERS = [
     User(

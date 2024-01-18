@@ -1,4 +1,4 @@
-from uma.currency import Currency
+from uma import Currency
 
 USD = "USD"
 BRL = "BRL"
