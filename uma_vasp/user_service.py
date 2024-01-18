@@ -12,3 +12,9 @@ class IUserService(ABC):
     @abstractmethod
     def get_user_from_id(self, user_id: str) -> Optional[User]:
         pass
+
+    @abstractmethod
+    def get_calling_user_from_request(
+        self, request_url: str, request_headers: dict
+    ) -> User:
+        pass
