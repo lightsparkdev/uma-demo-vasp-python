@@ -44,6 +44,7 @@ class InMemorySendingVaspRequestCache(ISendingVaspRequestCache):
         utxo_callback: str,
         invoice_data: InvoiceData,
         sender_currencies: List[Currency],
+        sending_user_id: str,
     ) -> str:
         uuid = str(uuid4())
         self.payreq_data[uuid] = SendingVaspPayReqData(
@@ -51,5 +52,6 @@ class InMemorySendingVaspRequestCache(ISendingVaspRequestCache):
             utxo_callback=utxo_callback,
             invoice_data=invoice_data,
             sender_currencies=sender_currencies,
+            sending_user_id=sending_user_id,
         )
         return uuid

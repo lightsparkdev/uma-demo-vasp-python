@@ -23,6 +23,7 @@ class SendingVaspPayReqData:
     utxo_callback: str
     invoice_data: InvoiceData
     sender_currencies: List[Currency]
+    sending_user_id: str
 
 
 class ISendingVaspRequestCache(ABC):
@@ -55,5 +56,6 @@ class ISendingVaspRequestCache(ABC):
         utxo_callback: str,
         invoice_data: InvoiceData,
         sender_currencies: List[Currency],
+        sending_user_id: str,
     ) -> str:
         pass

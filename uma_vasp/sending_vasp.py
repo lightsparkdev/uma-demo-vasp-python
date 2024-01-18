@@ -1,16 +1,19 @@
-from typing import cast
+import time
+from datetime import datetime
+from typing import List, cast
+
 import requests
 from flask import abort
 from flask import request as flask_request
-from lightspark import (
-    LightsparkSyncClient as LightsparkClient,
-    InvoiceData,
-)
+from lightspark import CurrencyUnit, InvoiceData
+from lightspark import LightsparkSyncClient as LightsparkClient
+from lightspark import OutgoingPayment, SigningKey, TransactionStatus
 from uma import (
     InvalidSignatureException,
     IPublicKeyCache,
     LnurlpResponse,
     PayReqResponse,
+    UtxoWithAmount,
     create_compliance_payer_data,
     create_lnurlp_request_url,
     create_pay_request,
@@ -19,8 +22,8 @@ from uma import (
     parse_pay_req_response,
     verify_uma_lnurlp_response_signature,
 )
-from uma_vasp.address_helpers import get_domain_from_uma_address
 
+from uma_vasp.address_helpers import get_domain_from_uma_address
 from uma_vasp.app import app
 from uma_vasp.config import Config
 from uma_vasp.currencies import CURRENCIES
@@ -56,6 +59,7 @@ class SendingVasp:
         )
 
         response = requests.get(url, timeout=20)
+
         # TODO: Add version negotiation handling.
         if response.status_code != 200:
             abort(
@@ -222,6 +226,8 @@ class SendingVasp:
                 },
             )
 
+        # TODO: Pre-screen the node pubkey and/or utxos here.
+
         sender_currencies = [
             CURRENCIES[currency]
             for currency in user.currencies
@@ -240,6 +246,7 @@ class SendingVasp:
             utxo_callback=payreq_response.compliance.utxo_callback,
             invoice_data=invoice_data,
             sender_currencies=sender_currencies,
+            sending_user_id=user.id,
         )
 
         return {
@@ -253,6 +260,77 @@ class SendingVasp:
         }
 
     def handle_send_payment(self, callback_uuid: str):
+        if not callback_uuid or not callback_uuid.strip():
+            abort(
+                400,
+                {
+                    "status": "ERROR",
+                    "reason": "Callback UUID is required.",
+                },
+            )
+
+        user = self._get_calling_user_or_abort()
+        payreq_data = self.request_cache.get_pay_req_data(callback_uuid)
+        if not payreq_data:
+            abort(
+                404,
+                {
+                    "status": "ERROR",
+                    "reason": f"Cannot find callback UUID {callback_uuid}",
+                },
+            )
+        if payreq_data.sending_user_id != user.id:
+            abort(
+                403,
+                {
+                    "status": "ERROR",
+                    "reason": "You are not authorized to send this payment.",
+                },
+            )
+
+        is_invoice_expired = (
+            payreq_data.invoice_data.expires_at.timestamp() < datetime.now().timestamp()
+        )
+        if is_invoice_expired:
+            abort(
+                400,
+                {
+                    "status": "ERROR",
+                    "reason": "Invoice has expired.",
+                },
+            )
+
+        # TODO: Handle sending currencies besides SATs here and simulate the exchange.
+
+        self._load_signing_key()
+        payment_result = self.lightspark_client.pay_uma_invoice(
+            node_id=self.config.node_id,
+            encoded_invoice=payreq_data.encoded_invoice,
+            timeout_secs=30,
+            maximum_fees_msats=1000,
+        )
+        if not payment_result:
+            abort(
+                500,
+                {
+                    "status": "ERROR",
+                    "reason": "Payment failed.",
+                },
+            )
+        payment = self.wait_for_payment_completion(payment_result)
+        if payment.status != TransactionStatus.SUCCESS:
+            abort(
+                500,
+                {
+                    "status": "ERROR",
+                    "reason": f"Payment failed. Payment ID: {payment.id}",
+                },
+            )
+
+        # TODO: Register tx monitoring.
+
+        self._send_post_tx_callback(payment, payreq_data.utxo_callback)
+
         return "OK"
 
     def _parse_and_validate_amount(
@@ -317,6 +395,91 @@ class SendingVasp:
         if not user:
             abort(401)
         return user
+
+    def _send_post_tx_callback(self, payment: OutgoingPayment, utxo_callback: str):
+        if not utxo_callback:
+            return
+
+        post_tx_data = payment.uma_post_transaction_data
+        if not post_tx_data:
+            print("No UTXO data to send.")
+            return
+
+        utxos: List[UtxoWithAmount] = []
+        for output in post_tx_data:
+            utxos.append(
+                UtxoWithAmount(
+                    utxo=output.utxo,
+                    amount_msats=output.amount.convert_to(
+                        CurrencyUnit.MILLISATOSHI
+                    ).preferred_currency_value_rounded,
+                )
+            )
+
+        res = requests.post(
+            utxo_callback,
+            json={"utxos": utxos},
+            timeout=10,
+        )
+        if res.status_code != 200:
+            # Allowing this to fail silently for now since it doesn't block the user flow.
+            print(
+                f"Error sending UTXO callback: {res.status_code} {res.text}",
+                flush=True,
+            )
+
+    def _load_signing_key(self):
+        node = get_node(self.lightspark_client, self.config.node_id)
+
+        if "OSK" in node.typename:
+            osk_password = self.config.osk_node_signing_key_password
+            if not osk_password:
+                abort(
+                    400,
+                    {
+                        "status": "ERROR",
+                        "reason": "OSK password is required for OSK nodes.",
+                    },
+                )
+            self.lightspark_client.recover_node_signing_key(
+                self.config.node_id, osk_password
+            )
+            return
+
+        # Assume remote signing.
+        master_seed = self.config.get_remote_signing_node_master_seed()
+        if not master_seed:
+            abort(
+                400,
+                {
+                    "status": "ERROR",
+                    "reason": "Remote signing master seed is required for remote signing nodes.",
+                },
+            )
+        self.lightspark_client.provide_node_master_seed(
+            self.config.node_id, master_seed, node.bitcoin_network
+        )
+
+    def wait_for_payment_completion(
+        self, initial_payment: OutgoingPayment
+    ) -> OutgoingPayment:
+        max_retries = 40
+        num_retries = 0
+        payment = initial_payment
+        while payment.status == TransactionStatus.PENDING and num_retries < max_retries:
+            payment = self.lightspark_client.get_entity(payment.id, OutgoingPayment)
+            if not payment:
+                abort(
+                    500,
+                    {
+                        "status": "ERROR",
+                        "reason": "Payment not found.",
+                    },
+                )
+            if payment.status == TransactionStatus.PENDING:
+                time.sleep(0.25)
+            num_retries += 1
+        return payment
 
 
 def register_routes(sending_vasp: SendingVasp):
