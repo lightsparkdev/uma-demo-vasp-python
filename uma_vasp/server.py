@@ -1,5 +1,6 @@
 from flask import request
 from lightspark import LightsparkSyncClient
+from uma import InMemoryPublicKeyCache
 
 from uma_vasp.app import app
 from uma_vasp.config import Config
@@ -9,6 +10,8 @@ from uma_vasp.receiving_vasp import register_routes as register_receiving_vasp_r
 
 user_service = DemoUserService()
 config = Config()
+pubkey_cache = InMemoryPublicKeyCache()
+
 lightspark_client = LightsparkSyncClient(
     api_token_client_id=config.api_token_client_id,
     api_token_client_secret=config.api_token_client_secret,
@@ -18,6 +21,7 @@ lightspark_client = LightsparkSyncClient(
 receiving_vasp = ReceivingVasp(
     user_service=user_service,
     lightspark_client=lightspark_client,
+    pubkey_cache=pubkey_cache,
     config=config,
 )
 

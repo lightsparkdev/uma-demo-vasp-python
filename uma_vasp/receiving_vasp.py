@@ -5,7 +5,7 @@ from flask import request as flask_request
 from lightspark import LightsparkNode
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
-    InMemoryPublicKeyCache,
+    IPublicKeyCache,
     IUmaInvoiceCreator,
     KycStatus,
     LnurlpRequest,
@@ -40,10 +40,11 @@ class ReceivingVasp:
         self,
         user_service: IUserService,
         lightspark_client: LightsparkClient,
+        pubkey_cache: IPublicKeyCache,
         config: Config,
     ) -> None:
         self.user_service = user_service
-        self.vasp_pubkey_cache = InMemoryPublicKeyCache()
+        self.vasp_pubkey_cache = pubkey_cache
         self.lightspark_client = lightspark_client
         self.config = config
 
