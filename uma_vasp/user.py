@@ -15,4 +15,4 @@ class User:
     currencies: list[str]
 
     def get_uma_address(self, config: Config) -> str:
-        return f"{self.uma_user_name}@{config.get_uma_domain()}"
+        return f"${self.uma_user_name}@{config.get_uma_domain()}"

@@ -30,7 +30,13 @@ USERS = [
 class DemoUserService(IUserService):
     def get_user_from_uma_user_name(self, uma_user_name: str) -> Optional[User]:
         return next(
-            (user for user in USERS if user.uma_user_name == uma_user_name), None
+            (
+                user
+                for user in USERS
+                if user.uma_user_name == uma_user_name
+                or f"${user.uma_user_name}" == uma_user_name
+            ),
+            None,
         )
 
     def get_user_from_id(self, user_id: str) -> Optional[User]:

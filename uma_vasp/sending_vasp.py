@@ -7,7 +7,7 @@ from flask import abort
 from flask import request as flask_request
 from lightspark import CurrencyUnit, InvoiceData
 from lightspark import LightsparkSyncClient as LightsparkClient
-from lightspark import OutgoingPayment, SigningKey, TransactionStatus
+from lightspark import OutgoingPayment, TransactionStatus
 from uma import (
     InvalidSignatureException,
     IPublicKeyCache,

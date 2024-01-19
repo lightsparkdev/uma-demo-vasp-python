@@ -42,9 +42,9 @@ class Config:
         )
 
     def get_uma_domain(self) -> str:
-        # uma_domain = os.environ.get("LIGHTSPARK_UMA_VASP_DOMAIN")
-        # if uma_domain:
-        #     return uma_domain
+        uma_domain = os.environ.get("LIGHTSPARK_UMA_VASP_DOMAIN")
+        if uma_domain:
+            return uma_domain
 
         parts = request.url_root.split("/")
         return parts[-2]
