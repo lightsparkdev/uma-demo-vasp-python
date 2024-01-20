@@ -112,8 +112,8 @@ class SendingVasp:
         ]
 
         return {
-            "senderCurrencies": sender_currencies,
-            "receiverCurrencies": lnurlp_response.currencies,
+            "senderCurrencies": [currency.to_dict() for currency in sender_currencies],
+            "receiverCurrencies": [currency.to_dict() for currency in lnurlp_response.currencies],
             "minSendableSats": lnurlp_response.min_sendable,
             "maxSendableSats": lnurlp_response.max_sendable,
             "callbackUuid": callback_uuid,
@@ -250,7 +250,7 @@ class SendingVasp:
         )
 
         return {
-            "senderCurrencies": sender_currencies,
+            "senderCurrencies": [currency.to_dict() for currency in sender_currencies],
             "callbackUuid": new_callback_uuid,
             "encodedInvoice": payreq_response.encoded_invoice,
             "amountMsats": invoice_data.amount.original_value,

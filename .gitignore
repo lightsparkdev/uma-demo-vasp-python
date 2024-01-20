@@ -3,4 +3,4 @@
 lightspark.egg-info/
 dist/
 .vscode/
-env.local
+local.env
