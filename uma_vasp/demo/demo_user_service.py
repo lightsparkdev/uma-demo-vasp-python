@@ -7,13 +7,15 @@ from uma import KycStatus
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
 
+_user_name = os.environ.get("LIGHTSPARK_UMA_RECEIVER_USER_NAME") or "alice"
+
 USERS = [
     User(
         id="1",
-        uma_user_name="alice",
+        uma_user_name=_user_name,
         kyc_status=KycStatus.VERIFIED,
-        email_address="alice@myvasp.edu",
-        name="Alice",
+        email_address=f"{_user_name}@myvasp.edu",
+        name=f"{_user_name.capitalize()} LastName",
         currencies=["SAT", "USD"],
     ),
     User(
