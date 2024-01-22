@@ -7,7 +7,7 @@ from uma import KycStatus
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
 
-_user_name = os.environ.get("LIGHTSPARK_UMA_RECEIVER_USER_NAME") or "alice"
+_user_name = os.environ.get("LIGHTSPARK_UMA_RECEIVER_USER") or "alice"
 
 USERS = [
     User(

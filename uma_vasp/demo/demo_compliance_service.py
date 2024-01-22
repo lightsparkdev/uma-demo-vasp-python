@@ -47,7 +47,7 @@ class DemoComplianceService(IComplianceService):
 
         # Only actually do compliance stuff if there's a compliance provider set
         if not self.config.compliance_provider:
-            return False
+            return True
 
         risk = self.lightspark_client.screen_node(
             self.config.compliance_provider, counterparty_node_id
