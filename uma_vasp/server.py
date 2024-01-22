@@ -4,6 +4,7 @@ from uma import InMemoryPublicKeyCache
 
 from uma_vasp.app import app
 from uma_vasp.config import Config
+from uma_vasp.demo.demo_compliance_service import DemoComplianceService
 from uma_vasp.demo.demo_user_service import DemoUserService
 from uma_vasp.demo.in_memory_sending_vasp_request_cache import (
     InMemorySendingVaspRequestCache,
@@ -22,9 +23,11 @@ lightspark_client = LightsparkSyncClient(
     api_token_client_secret=config.api_token_client_secret,
     http_host=config.base_url,
 )
+compliance_service = DemoComplianceService(lightspark_client)
 
 receiving_vasp = ReceivingVasp(
     user_service=user_service,
+    compliance_service=compliance_service,
     lightspark_client=lightspark_client,
     pubkey_cache=pubkey_cache,
     config=config,
@@ -32,6 +35,7 @@ receiving_vasp = ReceivingVasp(
 
 sending_vasp = SendingVasp(
     user_service=user_service,
+    compliance_service=compliance_service,
     lightspark_client=lightspark_client,
     pubkey_cache=pubkey_cache,
     request_cache=InMemorySendingVaspRequestCache(),

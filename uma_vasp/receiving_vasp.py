@@ -22,6 +22,7 @@ from uma import (
 from uma_vasp.address_helpers import get_domain_from_uma_address
 
 from uma_vasp.app import app
+from uma_vasp.compliance_service import IComplianceService
 from uma_vasp.config import Config
 from uma_vasp.currencies import (
     CURRENCIES,
@@ -40,11 +41,13 @@ class ReceivingVasp:
     def __init__(
         self,
         user_service: IUserService,
+        compliance_service: IComplianceService,
         lightspark_client: LightsparkClient,
         pubkey_cache: IPublicKeyCache,
         config: Config,
     ) -> None:
         self.user_service = user_service
+        self.compliance_service = compliance_service
         self.vasp_pubkey_cache = pubkey_cache
         self.lightspark_client = lightspark_client
         self.config = config
@@ -65,6 +68,17 @@ class ReceivingVasp:
                 {
                     "status": "ERROR",
                     "reason": f"Invalid UMA lnurlp request: {e}",
+                },
+            )
+
+        if not self.compliance_service.should_accept_transaction_from_vasp(
+            lnurlp_request.vasp_domain, lnurlp_request.receiver_address
+        ):
+            abort(
+                403,
+                {
+                    "status": "ERROR",
+                    "reason": f"Cannot accept transactions from vasp {lnurlp_request.vasp_domain}",
                 },
             )
 
@@ -163,6 +177,17 @@ class ReceivingVasp:
             )
 
         vasp_domain = get_domain_from_uma_address(request.payer_data.identifier)
+        if not self.compliance_service.should_accept_transaction_from_vasp(
+            vasp_domain, user.get_uma_address(self.config)
+        ):
+            abort(
+                403,
+                {
+                    "status": "ERROR",
+                    "reason": f"Cannot accept transactions from vasp {vasp_domain}",
+                },
+            )
+
         sender_vasp_signing_pubkey = fetch_public_key_for_vasp(
             vasp_domain=vasp_domain,
             cache=self.vasp_pubkey_cache,
@@ -186,6 +211,18 @@ class ReceivingVasp:
                 },
             )
         receiver_fees_msats = RECEIVER_FEES_MSATS[request.currency_code]
+
+        compliance_data = request.payer_data.compliance
+        if compliance_data:
+            self.compliance_service.pre_screen_transaction(
+                sending_uma_address=request.payer_data.identifier,
+                receiving_uma_address=user.get_uma_address(self.config),
+                amount_msats=round(request.amount * msats_per_currency_unit)
+                + receiver_fees_msats,
+                counterparty_node_id=compliance_data.node_pubkey,
+                counterparty_utxos=compliance_data.utxos,
+            )
+
         node = get_node(self.lightspark_client, self.config.node_id)
 
         return create_pay_req_response(
@@ -200,7 +237,9 @@ class ReceivingVasp:
             receiver_fees_msats=receiver_fees_msats,
             receiver_node_pubkey=node.public_key,
             receiver_utxos=node.uma_prescreening_utxos,
-            utxo_callback=self.config.get_complete_url("/api/uma/utxoCallback?txid=12345"),
+            utxo_callback=self.config.get_complete_url(
+                "/api/uma/utxoCallback?txid=12345"
+            ),
         ).to_dict()
 
     def _create_metadata(self, user: User) -> str:

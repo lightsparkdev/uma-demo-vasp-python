@@ -27,13 +27,13 @@ class InMemorySendingVaspRequestCache(ISendingVaspRequestCache):
     def save_lnurlp_response_data(
         self,
         lnurlp_response: LnurlpResponse,
-        receiver_id: str,
+        receiver_uma: str,
         receiving_vasp_domain: str,
     ) -> str:
         uuid = str(uuid4())
         self.lnurlp_response_data[uuid] = SendingVaspInitialRequestData(
             lnurlp_response=lnurlp_response,
-            receiver_id=receiver_id,
+            receiver_uma=receiver_uma,
             receiving_vasp_domain=receiving_vasp_domain,
         )
         return uuid
@@ -45,6 +45,7 @@ class InMemorySendingVaspRequestCache(ISendingVaspRequestCache):
         invoice_data: InvoiceData,
         sender_currencies: List[Currency],
         sending_user_id: str,
+        receiving_node_pubkey: Optional[str],
     ) -> str:
         uuid = str(uuid4())
         self.payreq_data[uuid] = SendingVaspPayReqData(
@@ -53,5 +54,6 @@ class InMemorySendingVaspRequestCache(ISendingVaspRequestCache):
             invoice_data=invoice_data,
             sender_currencies=sender_currencies,
             sending_user_id=sending_user_id,
+            receiving_node_pubkey=receiving_node_pubkey,
         )
         return uuid

@@ -7,7 +7,7 @@ from flask import abort
 from flask import request as flask_request
 from lightspark import CurrencyUnit, InvoiceData
 from lightspark import LightsparkSyncClient as LightsparkClient
-from lightspark import OutgoingPayment, TransactionStatus
+from lightspark import OutgoingPayment, PaymentDirection, TransactionStatus
 from uma import (
     InvalidSignatureException,
     IPublicKeyCache,
@@ -26,6 +26,7 @@ from uma import (
 
 from uma_vasp.address_helpers import get_domain_from_uma_address
 from uma_vasp.app import app
+from uma_vasp.compliance_service import IComplianceService
 from uma_vasp.config import Config
 from uma_vasp.currencies import CURRENCIES
 from uma_vasp.lightspark_helpers import get_node
@@ -38,12 +39,14 @@ class SendingVasp:
     def __init__(
         self,
         user_service: IUserService,
+        compliance_service: IComplianceService,
         lightspark_client: LightsparkClient,
         pubkey_cache: IPublicKeyCache,
         request_cache: ISendingVaspRequestCache,
         config: Config,
     ) -> None:
         self.user_service = user_service
+        self.compliance_service = compliance_service
         self.vasp_pubkey_cache = pubkey_cache
         self.lightspark_client = lightspark_client
         self.request_cache = request_cache
@@ -51,6 +54,19 @@ class SendingVasp:
 
     def handle_uma_lookup(self, receiver_uma: str):
         user = self._get_calling_user_or_abort()
+
+        if not self.compliance_service.should_accept_transaction_to_vasp(
+            receiving_vasp_domain=get_domain_from_uma_address(receiver_uma),
+            sending_uma_address=user.get_uma_address(self.config),
+            receiving_uma_address=receiver_uma,
+        ):
+            abort(
+                403,
+                {
+                    "status": "ERROR",
+                    "reason": "Transactions to that receiving VASP are not allowed.",
+                },
+            )
 
         url = create_lnurlp_request_url(
             signing_private_key=self.config.get_signing_privkey(),
@@ -107,7 +123,7 @@ class SendingVasp:
 
         callback_uuid = self.request_cache.save_lnurlp_response_data(
             lnurlp_response=lnurlp_response,
-            receiver_id=user.id,
+            receiver_uma=receiver_uma,
             receiving_vasp_domain=self.config.get_uma_domain(),
         )
         sender_currencies = [
@@ -220,7 +236,12 @@ class SendingVasp:
             signing_private_key=self.config.get_signing_privkey(),
             payer_identifier=user.get_uma_address(self.config),
             payer_kyc_status=user.kyc_status,
-            travel_rule_info=None,
+            travel_rule_info=self.compliance_service.get_travel_rule_info_for_transaction(
+                sending_user_id=user.id,
+                sending_uma_address=user.get_uma_address(self.config),
+                receiving_uma_address=initial_request_data.receiver_uma,
+                amount_msats=round(amount * receiving_currency.millisatoshi_per_unit),
+            ),
             payer_node_pubkey=node.public_key,
             payer_utxos=node.uma_prescreening_utxos,
             utxo_callback=self.config.get_complete_url(
@@ -264,7 +285,21 @@ class SendingVasp:
                 },
             )
 
-        # TODO: Pre-screen the node pubkey and/or utxos here.
+        if not self.compliance_service.pre_screen_transaction(
+            sending_uma_address=user.get_uma_address(self.config),
+            receiving_uma_address=initial_request_data.receiver_uma,
+            amount_msats=round(amount * payreq_response.payment_info.multiplier)
+            + payreq_response.payment_info.exchange_fees_msats,
+            counterparty_node_id=payreq_response.compliance.node_pubkey,
+            counterparty_utxos=payreq_response.compliance.utxos,
+        ):
+            abort(
+                403,
+                {
+                    "status": "ERROR",
+                    "reason": "Transaction is not allowed.",
+                },
+            )
 
         sender_currencies = [
             CURRENCIES[currency]
@@ -285,6 +320,7 @@ class SendingVasp:
             invoice_data=invoice_data,
             sender_currencies=sender_currencies,
             sending_user_id=user.id,
+            receiving_node_pubkey=payreq_response.compliance.node_pubkey,
         )
 
         return {
@@ -365,7 +401,12 @@ class SendingVasp:
                 },
             )
 
-        # TODO: Register tx monitoring.
+        self.compliance_service.register_transaction_monitoring(
+            payment_id=payment.id,
+            node_pubkey=payreq_data.receiving_node_pubkey,
+            payment_direction=PaymentDirection.SENT,
+            last_hop_utxos_with_amounts=payment.uma_post_transaction_data or [],
+        )
 
         self._send_post_tx_callback(payment, payreq_data.utxo_callback)
 
