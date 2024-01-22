@@ -20,6 +20,7 @@ from uma import (
     fetch_public_key_for_vasp,
     parse_lnurlp_response,
     parse_pay_req_response,
+    select_highest_supported_version,
     verify_uma_lnurlp_response_signature,
 )
 
@@ -60,7 +61,11 @@ class SendingVasp:
 
         response = requests.get(url, timeout=20)
 
-        # TODO: Add version negotiation handling.
+        if response.status_code == 412:
+            response = self._retry_lnurlp_with_version_negotiation(
+                receiver_uma, response
+            )
+
         if response.status_code != 200:
             abort(
                 424,
@@ -113,13 +118,46 @@ class SendingVasp:
 
         return {
             "senderCurrencies": [currency.to_dict() for currency in sender_currencies],
-            "receiverCurrencies": [currency.to_dict() for currency in lnurlp_response.currencies],
+            "receiverCurrencies": [
+                currency.to_dict() for currency in lnurlp_response.currencies
+            ],
             "minSendableSats": lnurlp_response.min_sendable,
             "maxSendableSats": lnurlp_response.max_sendable,
             "callbackUuid": callback_uuid,
             # You might not actually send this to a client in practice.
             "receiverKycStatus": lnurlp_response.compliance.kyc_status.value,
         }
+
+    def _retry_lnurlp_with_version_negotiation(
+        self, receiver_uma: str, response: requests.Response
+    ):
+        response_body = response.json()
+        supported_major_versions = response_body["supportedMajorVersions"]
+        if not supported_major_versions or len(supported_major_versions) == 0:
+            abort(
+                424,
+                {
+                    "status": "ERROR",
+                    "reason": "No supported major versions.",
+                },
+            )
+        new_version = select_highest_supported_version(supported_major_versions)
+        if not new_version:
+            abort(
+                424,
+                {
+                    "status": "ERROR",
+                    "reason": "No matching UMA version compatible with receiving VASP.",
+                },
+            )
+        retry_url = create_lnurlp_request_url(
+            signing_private_key=self.config.get_signing_privkey(),
+            receiver_address=receiver_uma,
+            sender_vasp_domain=self.config.get_uma_domain(),
+            is_subject_to_travel_rule=True,
+            uma_version_override=new_version,
+        )
+        return requests.get(retry_url, timeout=20)
 
     def handle_uma_payreq(self, callback_uuid: str):
         user = self._get_calling_user_or_abort()
