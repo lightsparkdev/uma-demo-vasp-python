@@ -1,6 +1,7 @@
 import os
 
 from flask import request
+from lightspark import ComplianceProvider
 
 
 class Config:
@@ -21,6 +22,13 @@ class Config:
         self.remote_signing_node_master_seed = os.environ.get(
             "LIGHTSPARK_UMA_REMOTE_SIGNING_NODE_MASTER_SEED"
         )
+        self.compliance_provider = None
+        try:
+            compliance_env = os.environ.get("LIGHTSPARK_UMA_COMPLIANCE_PROVIDER")
+            self.compliance_provider = ComplianceProvider[compliance_env]
+        except KeyError:
+            # leave it as None
+            pass
 
     def get_encryption_pubkey(self):
         return bytes.fromhex(self.encryption_pubkey_hex)

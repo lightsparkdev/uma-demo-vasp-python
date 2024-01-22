@@ -1,7 +1,6 @@
 from typing import List, Optional
 
 from lightspark import (
-    ComplianceProvider,
     LightsparkSyncClient,
     PaymentDirection,
     PostTransactionData,
@@ -9,11 +8,13 @@ from lightspark import (
 )
 
 from uma_vasp.compliance_service import IComplianceService
+from uma_vasp.config import Config
 
 
 class DemoComplianceService(IComplianceService):
-    def __init__(self, lightspark_client: LightsparkSyncClient):
+    def __init__(self, lightspark_client: LightsparkSyncClient, config: Config):
         self.lightspark_client = lightspark_client
+        self.config = config
 
     def should_accept_transaction_from_vasp(
         self,
@@ -44,8 +45,12 @@ class DemoComplianceService(IComplianceService):
         if counterparty_node_id is None:
             return False
 
+        # Only actually do compliance stuff if there's a compliance provider set
+        if not self.config.compliance_provider:
+            return False
+
         risk = self.lightspark_client.screen_node(
-            ComplianceProvider.CHAINALYSIS, counterparty_node_id
+            self.config.compliance_provider, counterparty_node_id
         )
         return risk != RiskRating.HIGH_RISK
 
@@ -61,8 +66,12 @@ class DemoComplianceService(IComplianceService):
         if node_pubkey is None:
             return
 
+        # Only actually do compliance stuff if there's a compliance provider set
+        if not self.config.compliance_provider:
+            return
+
         self.lightspark_client.register_payment(
-            ComplianceProvider.CHAINALYSIS, payment_id, node_pubkey, payment_direction
+            self.config.compliance_provider, payment_id, node_pubkey, payment_direction
         )
 
     def get_travel_rule_info_for_transaction(

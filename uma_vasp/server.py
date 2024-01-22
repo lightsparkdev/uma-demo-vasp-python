@@ -23,7 +23,7 @@ lightspark_client = LightsparkSyncClient(
     api_token_client_secret=config.api_token_client_secret,
     http_host=config.base_url,
 )
-compliance_service = DemoComplianceService(lightspark_client)
+compliance_service = DemoComplianceService(lightspark_client, config)
 
 receiving_vasp = ReceivingVasp(
     user_service=user_service,
