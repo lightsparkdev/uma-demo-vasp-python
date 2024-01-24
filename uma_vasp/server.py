@@ -18,10 +18,14 @@ user_service = DemoUserService()
 config = Config()
 pubkey_cache = InMemoryPublicKeyCache()
 
+host = None
+if config.base_url:
+    host = config.base_url.split("://")[1].split("/")[0]
 lightspark_client = LightsparkSyncClient(
     api_token_client_id=config.api_token_client_id,
     api_token_client_secret=config.api_token_client_secret,
-    http_host=config.base_url,
+    base_url=config.base_url,
+    http_host=host,
 )
 compliance_service = DemoComplianceService(lightspark_client, config)
 
