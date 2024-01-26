@@ -1,6 +1,10 @@
 name: "Fossa Licenses Check"
 
 on:
+  pull_request:
+    paths:
+        - "Pipfile.lock"
+        - ".github/workflows/fossa.yaml"
   push:
     branches:
       - main
