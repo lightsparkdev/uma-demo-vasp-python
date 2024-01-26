@@ -1,6 +1,10 @@
 name: "Fossa Licenses Check"
 
 on:
+  pull_request:
+    paths:
+        - "Pipfile.lock"
+        - ".github/workflows/fossa.yaml"
   push:
     branches:
       - main
@@ -36,6 +40,6 @@ jobs:
       - name: "Install pipenv"
         run: "pip install pipenv wheel"
       - name: "Install dependencies"
-        run: "pipenv sync --dev"
+        run: "pipenv sync --dev ."
       - name: "Run fossa analyze"
         run: "fossa analyze -b $BRANCH"
