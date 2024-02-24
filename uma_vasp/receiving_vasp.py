@@ -8,8 +8,9 @@ from uma import (
     IUmaInvoiceCreator,
     KycStatus,
     LnurlpRequest,
-    PayerDataOptions,
     PayRequest,
+    compliance_from_payer_data,
+    create_counterparty_data_options,
     create_lnurlp_response,
     create_pay_req_response,
     fetch_public_key_for_vasp,
@@ -19,8 +20,8 @@ from uma import (
     verify_pay_request_signature,
     verify_uma_lnurlp_query_signature,
 )
-from uma_vasp.address_helpers import get_domain_from_uma_address
 
+from uma_vasp.address_helpers import get_domain_from_uma_address
 from uma_vasp.compliance_service import IComplianceService
 from uma_vasp.config import Config
 from uma_vasp.currencies import (
@@ -120,10 +121,13 @@ class ReceivingVasp:
             )
 
         metadata = self._create_metadata(user)
-        payer_data_options = PayerDataOptions(
-            name_required=False,
-            email_required=False,
-            compliance_required=True,
+        payer_data_options = create_counterparty_data_options(
+            {
+                "name": False,
+                "email": False,
+                "identifier": True,
+                "compliance": True,
+            }
         )
         callback = self.config.get_complete_url(PAY_REQUEST_CALLBACK + user.id)
 
@@ -166,7 +170,8 @@ class ReceivingVasp:
                 },
             )
 
-        if not request.payer_data.compliance:
+        compliance = compliance_from_payer_data(request.payer_data)
+        if not compliance:
             abort(
                 400,
                 {
@@ -175,7 +180,9 @@ class ReceivingVasp:
                 },
             )
 
-        vasp_domain = get_domain_from_uma_address(request.payer_data.identifier)
+        vasp_domain = get_domain_from_uma_address(
+            request.payer_data.get("identifier", "")
+        )
         if not self.compliance_service.should_accept_transaction_from_vasp(
             vasp_domain, user.get_uma_address(self.config)
         ):
@@ -196,9 +203,7 @@ class ReceivingVasp:
             other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
         )
 
-        metadata = (
-            self._create_metadata(user) + "{" + request.payer_data.to_json() + "}"
-        )
+        metadata = self._create_metadata(user) + json.dumps(request.payer_data)
 
         msats_per_currency_unit = MSATS_PER_UNIT.get(request.currency_code, None)
         if msats_per_currency_unit is None:
@@ -211,11 +216,12 @@ class ReceivingVasp:
             )
         receiver_fees_msats = RECEIVER_FEES_MSATS[request.currency_code]
 
-        compliance_data = request.payer_data.compliance
+        receiver_uma = user.get_uma_address(self.config)
+        compliance_data = compliance_from_payer_data(request.payer_data)
         if compliance_data:
             self.compliance_service.pre_screen_transaction(
-                sending_uma_address=request.payer_data.identifier,
-                receiving_uma_address=user.get_uma_address(self.config),
+                sending_uma_address=request.payer_data.get("identifier", ""),
+                receiving_uma_address=receiver_uma,
                 amount_msats=round(request.amount * msats_per_currency_unit)
                 + receiver_fees_msats,
                 counterparty_node_id=compliance_data.node_pubkey,
@@ -238,6 +244,16 @@ class ReceivingVasp:
             receiver_utxos=node.uma_prescreening_utxos,
             utxo_callback=self.config.get_complete_url(
                 "/api/uma/utxoCallback?txid=12345"
+            ),
+            payee_identifier=receiver_uma,
+            signing_private_key=self.config.get_signing_privkey(),
+            payee_data=create_counterparty_data_options(
+                {
+                    "name": False,
+                    "email": False,
+                    "identifier": True,
+                    "compliance": True,
+                }
             ),
         ).to_dict()
 

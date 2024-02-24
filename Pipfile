@@ -4,10 +4,11 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-uma-sdk = "*"
 lightspark = "*"
 flask = "*"
 requests = "*"
+# NOTE: Change this to your local checkout of the UMA Python SDK and run pipenv install.
+uma-sdk = {path = "./../uma-python-sdk"}
 
 [dev-packages]
 black = "*"

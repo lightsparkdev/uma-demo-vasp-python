@@ -14,7 +14,9 @@ from uma import (
     LnurlpResponse,
     PayReqResponse,
     UtxoWithAmount,
+    compliance_from_payee_data,
     create_compliance_payer_data,
+    create_counterparty_data_options,
     create_lnurlp_request_url,
     create_pay_request,
     fetch_public_key_for_vasp,
@@ -150,11 +152,11 @@ class SendingVasp:
         initial_request_data = self.request_cache.get_lnurlp_response_data(
             callback_uuid
         )
-        if not initial_request_data:
+        if initial_request_data is None:
             _abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
 
         receiving_currency_code = flask_request.args.get("currencyCode")
-        if not receiving_currency_code:
+        if receiving_currency_code is None:
             _abort_with_error(400, "Currency code is required.")
 
         receiving_currencies = initial_request_data.lnurlp_response.currencies
@@ -200,6 +202,14 @@ class SendingVasp:
             ),
         )
 
+        requested_payee_data = create_counterparty_data_options(
+            {
+                "compliance": True,
+                "identifier": True,
+                "email": False,
+                "name": False,
+            }
+        )
         payreq = create_pay_request(
             currency_code=receiving_currency_code,
             amount=amount,
@@ -207,6 +217,7 @@ class SendingVasp:
             payer_name=user.name,
             payer_email=user.email_address,
             payer_compliance=payer_compliance,
+            requested_payee_data=requested_payee_data,
         )
 
         res = requests.post(
@@ -226,13 +237,17 @@ class SendingVasp:
         except Exception as e:
             _abort_with_error(424, f"Error parsing pay request response: {e}")
 
+        compliance = compliance_from_payee_data(payreq_response.payee_data)
+        if not compliance:
+            _abort_with_error(424, "No compliance data in pay request response.")
+
         if not self.compliance_service.pre_screen_transaction(
             sending_uma_address=user.get_uma_address(self.config),
             receiving_uma_address=initial_request_data.receiver_uma,
             amount_msats=round(amount * payreq_response.payment_info.multiplier)
             + payreq_response.payment_info.exchange_fees_msats,
-            counterparty_node_id=payreq_response.compliance.node_pubkey,
-            counterparty_utxos=payreq_response.compliance.utxos,
+            counterparty_node_id=compliance.node_pubkey,
+            counterparty_utxos=compliance.utxos,
         ):
             _abort_with_error(403, "Transaction is not allowed.")
 
@@ -248,11 +263,11 @@ class SendingVasp:
 
         new_callback_uuid = self.request_cache.save_pay_req_data(
             encoded_invoice=payreq_response.encoded_invoice,
-            utxo_callback=payreq_response.compliance.utxo_callback,
+            utxo_callback=compliance.utxo_callback,
             invoice_data=invoice_data,
             sender_currencies=sender_currencies,
             sending_user_id=user.id,
-            receiving_node_pubkey=payreq_response.compliance.node_pubkey,
+            receiving_node_pubkey=compliance.node_pubkey,
         )
 
         return {
