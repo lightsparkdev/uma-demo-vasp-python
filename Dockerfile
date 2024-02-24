@@ -21,7 +21,7 @@ COPY . /app
 # Expose port 9000 for Flask to listen on
 EXPOSE 9000
 
-ENV FLASK_APP=uma_vasp.server
+ENV FLASK_APP=uma_vasp
 ENV FLASK_RUN_PORT=9000
 
 # Start the Flask app

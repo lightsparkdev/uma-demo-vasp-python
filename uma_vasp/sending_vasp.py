@@ -1,9 +1,9 @@
 import time
 from datetime import datetime
-from typing import List, NoReturn, cast
+from typing import List, NoReturn
 
 import requests
-from flask import abort
+from flask import Flask, abort
 from flask import request as flask_request
 from lightspark import CurrencyUnit
 from lightspark import LightsparkSyncClient as LightsparkClient
@@ -25,7 +25,6 @@ from uma import (
 )
 
 from uma_vasp.address_helpers import get_domain_from_uma_address
-from uma_vasp.app import app
 from uma_vasp.compliance_service import IComplianceService
 from uma_vasp.config import Config
 from uma_vasp.currencies import CURRENCIES
@@ -441,7 +440,7 @@ def _abort_with_error(status_code: int, reason: str) -> NoReturn:
     )
 
 
-def register_routes(sending_vasp: SendingVasp):
+def register_routes(app: Flask, sending_vasp: SendingVasp):
     @app.route("/api/umalookup/<receiver_uma>")
     def handle_uma_lookup(receiver_uma: str):
         return sending_vasp.handle_uma_lookup(receiver_uma)

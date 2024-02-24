@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 from flask import request
 from lightspark import ComplianceProvider
@@ -7,28 +8,69 @@ from lightspark import ComplianceProvider
 class Config:
     """Extracts required environment variables and exposes them to the rest of the app."""
 
-    def __init__(self):
-        self.api_token_client_id = require_env("LIGHTSPARK_API_TOKEN_CLIENT_ID")
-        self.api_token_client_secret = require_env("LIGHTSPARK_API_TOKEN_CLIENT_SECRET")
-        self.node_id = require_env("LIGHTSPARK_UMA_NODE_ID")
-        self.encryption_pubkey_hex = require_env("LIGHTSPARK_UMA_ENCRYPTION_PUBKEY")
-        self.encryption_privkey_hex = require_env("LIGHTSPARK_UMA_ENCRYPTION_PRIVKEY")
-        self.signing_pubkey_hex = require_env("LIGHTSPARK_UMA_SIGNING_PUBKEY")
-        self.signing_privkey_hex = require_env("LIGHTSPARK_UMA_SIGNING_PRIVKEY")
-        self.base_url = os.environ.get("LIGHTSPARK_EXAMPLE_BASE_URL")
-        self.osk_node_signing_key_password = os.environ.get(
+    @classmethod
+    def from_env(cls):
+        api_token_client_id = require_env("LIGHTSPARK_API_TOKEN_CLIENT_ID")
+        api_token_client_secret = require_env("LIGHTSPARK_API_TOKEN_CLIENT_SECRET")
+        node_id = require_env("LIGHTSPARK_UMA_NODE_ID")
+        encryption_pubkey_hex = require_env("LIGHTSPARK_UMA_ENCRYPTION_PUBKEY")
+        encryption_privkey_hex = require_env("LIGHTSPARK_UMA_ENCRYPTION_PRIVKEY")
+        signing_pubkey_hex = require_env("LIGHTSPARK_UMA_SIGNING_PUBKEY")
+        signing_privkey_hex = require_env("LIGHTSPARK_UMA_SIGNING_PRIVKEY")
+        base_url = os.environ.get("LIGHTSPARK_EXAMPLE_BASE_URL")
+        osk_node_signing_key_password = os.environ.get(
             "LIGHTSPARK_UMA_OSK_NODE_SIGNING_KEY_PASSWORD"
         )
-        self.remote_signing_node_master_seed = os.environ.get(
+        remote_signing_node_master_seed = os.environ.get(
             "LIGHTSPARK_UMA_REMOTE_SIGNING_NODE_MASTER_SEED"
         )
-        self.compliance_provider = None
+        compliance_provider = None
         try:
             compliance_env = os.environ.get("LIGHTSPARK_UMA_COMPLIANCE_PROVIDER")
-            self.compliance_provider = ComplianceProvider[compliance_env]
+            if compliance_env:
+                compliance_provider = ComplianceProvider[compliance_env]
         except KeyError:
             # leave it as None
             pass
+        return Config(
+            api_token_client_id,
+            api_token_client_secret,
+            node_id,
+            encryption_pubkey_hex,
+            encryption_privkey_hex,
+            signing_pubkey_hex,
+            signing_privkey_hex,
+            base_url,
+            osk_node_signing_key_password,
+            remote_signing_node_master_seed,
+            compliance_provider,
+        )
+
+    def __init__(
+        self,
+        api_token_client_id: str,
+        api_token_client_secret: str,
+        node_id: str,
+        encryption_pubkey_hex: str,
+        encryption_privkey_hex: str,
+        signing_pubkey_hex: str,
+        signing_privkey_hex: str,
+        base_url: Optional[str] = None,
+        osk_node_signing_key_password: Optional[str] = None,
+        remote_signing_node_master_seed: Optional[str] = None,
+        compliance_provider: Optional[ComplianceProvider] = None,
+    ):
+        self.api_token_client_id = api_token_client_id
+        self.api_token_client_secret = api_token_client_secret
+        self.node_id = node_id
+        self.encryption_pubkey_hex = encryption_pubkey_hex
+        self.encryption_privkey_hex = encryption_privkey_hex
+        self.signing_pubkey_hex = signing_pubkey_hex
+        self.signing_privkey_hex = signing_privkey_hex
+        self.base_url = base_url
+        self.osk_node_signing_key_password = osk_node_signing_key_password
+        self.remote_signing_node_master_seed = remote_signing_node_master_seed
+        self.compliance_provider = compliance_provider
 
     def get_encryption_pubkey(self):
         return bytes.fromhex(self.encryption_pubkey_hex)
