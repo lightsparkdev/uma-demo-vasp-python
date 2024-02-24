@@ -1,6 +1,6 @@
 import json
 
-from flask import abort
+from flask import Flask, abort
 from flask import request as flask_request
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
@@ -21,7 +21,6 @@ from uma import (
 )
 from uma_vasp.address_helpers import get_domain_from_uma_address
 
-from uma_vasp.app import app
 from uma_vasp.compliance_service import IComplianceService
 from uma_vasp.config import Config
 from uma_vasp.currencies import (
@@ -269,7 +268,7 @@ class LightsparkInvoiceCreator(IUmaInvoiceCreator):
         ).data.encoded_payment_request
 
 
-def register_routes(receiving_vasp: ReceivingVasp):
+def register_routes(app: Flask, receiving_vasp: ReceivingVasp):
     @app.route("/.well-known/lnurlp/<username>")
     def handle_lnurlp_request(username: str):
         return receiving_vasp.handle_lnurlp_request(username)

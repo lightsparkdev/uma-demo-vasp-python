@@ -1,11 +1,11 @@
 import time
 from datetime import datetime
-from typing import List, cast
+from typing import List, NoReturn
 
 import requests
-from flask import abort
+from flask import Flask, abort
 from flask import request as flask_request
-from lightspark import CurrencyUnit, InvoiceData
+from lightspark import CurrencyUnit
 from lightspark import LightsparkSyncClient as LightsparkClient
 from lightspark import OutgoingPayment, PaymentDirection, TransactionStatus
 from uma import (
@@ -25,7 +25,6 @@ from uma import (
 )
 
 from uma_vasp.address_helpers import get_domain_from_uma_address
-from uma_vasp.app import app
 from uma_vasp.compliance_service import IComplianceService
 from uma_vasp.config import Config
 from uma_vasp.currencies import CURRENCIES
@@ -60,7 +59,9 @@ class SendingVasp:
             sending_uma_address=user.get_uma_address(self.config),
             receiving_uma_address=receiver_uma,
         ):
-            _abort_with_error(403, "Transactions to that receiving VASP are not allowed.")
+            _abort_with_error(
+                403, "Transactions to that receiving VASP are not allowed."
+            )
 
         url = create_lnurlp_request_url(
             signing_private_key=self.config.get_signing_privkey(),
@@ -77,7 +78,9 @@ class SendingVasp:
             )
 
         if response.status_code != 200:
-            _abort_with_error(424, f"Error fetching LNURLP: {response.status_code} {response.text}")
+            _abort_with_error(
+                424, f"Error fetching LNURLP: {response.status_code} {response.text}"
+            )
 
         lnurlp_response: LnurlpResponse
         try:
@@ -129,7 +132,9 @@ class SendingVasp:
             _abort_with_error(424, "No major versions supported by receiving VASP.")
         new_version = select_highest_supported_version(supported_major_versions)
         if not new_version:
-            _abort_with_error(424, "No matching UMA version compatible with receiving VASP.")
+            _abort_with_error(
+                424, "No matching UMA version compatible with receiving VASP."
+            )
         retry_url = create_lnurlp_request_url(
             signing_private_key=self.config.get_signing_privkey(),
             receiver_address=receiver_uma,
@@ -165,7 +170,7 @@ class SendingVasp:
             _abort_with_error(400, "Currency code is not supported.")
 
         amount = self._parse_and_validate_amount(
-            flask_request.args.get("amount"),
+            flask_request.args.get("amount", ""),
             receiving_currency_code,
             initial_request_data.lnurlp_response,
         )
@@ -211,7 +216,9 @@ class SendingVasp:
         )
 
         if res.status_code != 200:
-            _abort_with_error(424, f"Error sending pay request: {res.status_code} {res.text}")
+            _abort_with_error(
+                424, f"Error sending pay request: {res.status_code} {res.text}"
+            )
 
         payreq_response: PayReqResponse
         try:
@@ -235,11 +242,8 @@ class SendingVasp:
             if currency in CURRENCIES
         ]
 
-        invoice_data = cast(
-            InvoiceData,
-            self.lightspark_client.get_decoded_payment_request(
-                payreq_response.encoded_invoice
-            ),
+        invoice_data = self.lightspark_client.get_decoded_payment_request(
+            payreq_response.encoded_invoice
         )
 
         new_callback_uuid = self.request_cache.save_pay_req_data(
@@ -268,7 +272,7 @@ class SendingVasp:
         user = self._get_calling_user_or_abort()
         payreq_data = self.request_cache.get_pay_req_data(callback_uuid)
         if not payreq_data:
-            _abort_with_error(404,f"Cannot find callback UUID {callback_uuid}")
+            _abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
         if payreq_data.sending_user_id != user.id:
             _abort_with_error(403, "You are not authorized to send this payment.")
 
@@ -276,7 +280,7 @@ class SendingVasp:
             payreq_data.invoice_data.expires_at.timestamp() < datetime.now().timestamp()
         )
         if is_invoice_expired:
-            _abort_with_error(400,"Invoice has expired.")
+            _abort_with_error(400, "Invoice has expired.")
 
         # TODO: Handle sending currencies besides SATs here and simulate the exchange.
 
@@ -402,7 +406,9 @@ class SendingVasp:
         # Assume remote signing.
         master_seed = self.config.get_remote_signing_node_master_seed()
         if not master_seed:
-            _abort_with_error(400, "Remote signing master seed is required for remote signing nodes.")
+            _abort_with_error(
+                400, "Remote signing master seed is required for remote signing nodes."
+            )
         self.lightspark_client.provide_node_master_seed(
             self.config.node_id, master_seed, node.bitcoin_network
         )
@@ -423,7 +429,7 @@ class SendingVasp:
         return payment
 
 
-def _abort_with_error(status_code: int, reason: str):
+def _abort_with_error(status_code: int, reason: str) -> NoReturn:
     print(f"Aborting with error {status_code}: {reason}")
     abort(
         status_code,
@@ -434,7 +440,7 @@ def _abort_with_error(status_code: int, reason: str):
     )
 
 
-def register_routes(sending_vasp: SendingVasp):
+def register_routes(app: Flask, sending_vasp: SendingVasp):
     @app.route("/api/umalookup/<receiver_uma>")
     def handle_uma_lookup(receiver_uma: str):
         return sending_vasp.handle_uma_lookup(receiver_uma)

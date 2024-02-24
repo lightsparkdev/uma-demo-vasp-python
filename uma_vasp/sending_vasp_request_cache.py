@@ -34,7 +34,9 @@ class ISendingVaspRequestCache(ABC):
     """
 
     @abstractmethod
-    def get_lnurlp_response_data(self, uuid: str) -> Optional[SendingVaspInitialRequestData]:
+    def get_lnurlp_response_data(
+        self, uuid: str
+    ) -> Optional[SendingVaspInitialRequestData]:
         pass
 
     @abstractmethod
