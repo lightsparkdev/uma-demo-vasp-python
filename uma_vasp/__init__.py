@@ -13,6 +13,7 @@ from uma_vasp.receiving_vasp import register_routes as register_receiving_vasp_r
 from uma_vasp.sending_vasp import SendingVasp
 from uma_vasp.sending_vasp import register_routes as register_sending_vasp_routes
 
+
 def create_app(config=None):
     app = Flask(__name__)
     user_service = DemoUserService()
@@ -48,7 +49,6 @@ def create_app(config=None):
         config=config,
     )
 
-
     @app.route("/.well-known/lnurlpubkey")
     def handle_public_key_request():
         return {
@@ -56,13 +56,11 @@ def create_app(config=None):
             "encryptionPubKey": config.encryption_pubkey_hex,
         }
 
-
     @app.route("/api/uma/utxoCallback", methods=["POST"])
     def handle_utxo_callback():
         print(f"Received UTXO callback for {request.args.get('txid')}")
         print(request.json)
         return "OK"
-
 
     register_receiving_vasp_routes(app, receiving_vasp)
     register_sending_vasp_routes(app, sending_vasp)

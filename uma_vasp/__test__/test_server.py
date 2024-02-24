@@ -2,11 +2,13 @@ import pytest
 from uma_vasp import create_app
 from uma_vasp.config import Config
 
+
 @pytest.fixture()
 def client(config):
     app = create_app(config)
     app.config.update({"TESTING": True})
     return app.test_client()
+
 
 @pytest.fixture()
 def config():
@@ -20,6 +22,7 @@ def config():
         signing_pubkey_hex="abcdef",
         signing_privkey_hex="abcdef",
     )
+
 
 def test_lnurlpubkey(client, config):
     response = client.get("/.well-known/lnurlpubkey")
