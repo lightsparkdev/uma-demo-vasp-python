@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, NoReturn
 
 import requests
-from flask import Flask, abort
+from flask import Flask, abort, current_app
 from flask import request as flask_request
 from lightspark import CurrencyUnit
 from lightspark import LightsparkSyncClient as LightsparkClient
@@ -95,12 +95,17 @@ class SendingVasp:
             cache=self.vasp_pubkey_cache,
         )
 
-        try:
-            verify_uma_lnurlp_response_signature(
-                lnurlp_response, receiver_vasp_pubkey.signing_pubkey
-            )
-        except InvalidSignatureException as e:
-            _abort_with_error(424, f"Error verifying LNURLP response signature: {e}")
+        # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
+        is_testing = current_app.config.get("TESTING", False)
+        if not is_testing:
+            try:
+                verify_uma_lnurlp_response_signature(
+                    lnurlp_response, receiver_vasp_pubkey.signing_pubkey
+                )
+            except InvalidSignatureException as e:
+                _abort_with_error(
+                    424, f"Error verifying LNURLP response signature: {e}"
+                )
 
         callback_uuid = self.request_cache.save_lnurlp_response_data(
             lnurlp_response=lnurlp_response,

@@ -1,6 +1,6 @@
 import json
 
-from flask import Flask, abort
+from flask import Flask, abort, current_app
 from flask import request as flask_request
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
@@ -106,19 +106,22 @@ class ReceivingVasp:
                 },
             )
 
-        try:
-            verify_uma_lnurlp_query_signature(
-                request=lnurlp_request,
-                other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
-            )
-        except Exception as e:
-            abort(
-                400,
-                {
-                    "status": "ERROR",
-                    "reason": f"Invalid signature: {e}",
-                },
-            )
+        # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
+        is_testing = current_app.config.get("TESTING", False)
+        if not is_testing:
+            try:
+                verify_uma_lnurlp_query_signature(
+                    request=lnurlp_request,
+                    other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
+                )
+            except Exception as e:
+                abort(
+                    400,
+                    {
+                        "status": "ERROR",
+                        "reason": f"Invalid signature: {e}",
+                    },
+                )
 
         metadata = self._create_metadata(user)
         payer_data_options = create_counterparty_data_options(
@@ -170,16 +173,6 @@ class ReceivingVasp:
                 },
             )
 
-        compliance = compliance_from_payer_data(request.payer_data)
-        if not compliance:
-            abort(
-                400,
-                {
-                    "status": "ERROR",
-                    "reason": "Compliance data is required.",
-                },
-            )
-
         vasp_domain = get_domain_from_uma_address(
             request.payer_data.get("identifier", "")
         )
@@ -194,14 +187,17 @@ class ReceivingVasp:
                 },
             )
 
-        sender_vasp_signing_pubkey = fetch_public_key_for_vasp(
-            vasp_domain=vasp_domain,
-            cache=self.vasp_pubkey_cache,
-        ).signing_pubkey
-        verify_pay_request_signature(
-            request=request,
-            other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
-        )
+        # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
+        is_testing = current_app.config.get("TESTING", False)
+        if not is_testing:
+            sender_vasp_signing_pubkey = fetch_public_key_for_vasp(
+                vasp_domain=vasp_domain,
+                cache=self.vasp_pubkey_cache,
+            ).signing_pubkey
+            verify_pay_request_signature(
+                request=request,
+                other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
+            )
 
         metadata = self._create_metadata(user) + json.dumps(request.payer_data)
 
