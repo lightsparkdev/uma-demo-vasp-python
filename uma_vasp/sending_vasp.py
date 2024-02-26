@@ -155,10 +155,13 @@ class SendingVasp:
         if initial_request_data is None:
             _abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
 
-        receiving_currency_code = flask_request.args.get("currencyCode")
+        receiving_currency_code = flask_request.args.get("receivingCurrencyCode")
         if receiving_currency_code is None:
             _abort_with_error(400, "Currency code is required.")
 
+        is_amount_in_msats = (
+            flask_request.args.get("isAmountInMsats", "").lower() == "true"
+        )
         receiving_currencies = initial_request_data.lnurlp_response.currencies
         receiving_currency = next(
             (
@@ -173,7 +176,7 @@ class SendingVasp:
 
         amount = self._parse_and_validate_amount(
             flask_request.args.get("amount", ""),
-            receiving_currency_code,
+            "SAT" if is_amount_in_msats else receiving_currency_code,
             initial_request_data.lnurlp_response,
         )
 
@@ -211,7 +214,8 @@ class SendingVasp:
             }
         )
         payreq = create_pay_request(
-            currency_code=receiving_currency_code,
+            receiving_currency_code=receiving_currency_code,
+            is_amount_in_receiving_currency=not is_amount_in_msats,
             amount=amount,
             payer_identifier=user.get_uma_address(self.config),
             payer_name=user.name,

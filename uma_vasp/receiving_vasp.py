@@ -205,16 +205,18 @@ class ReceivingVasp:
 
         metadata = self._create_metadata(user) + json.dumps(request.payer_data)
 
-        msats_per_currency_unit = MSATS_PER_UNIT.get(request.currency_code, None)
+        msats_per_currency_unit = MSATS_PER_UNIT.get(
+            request.receiving_currency_code, None
+        )
         if msats_per_currency_unit is None:
             abort(
                 400,
                 {
                     "status": "ERROR",
-                    "reason": f"Currency code {request.currency_code} in the pay request is not supported. We support only {','.join(str(currency_code) for currency_code in MSATS_PER_UNIT.keys())}.",
+                    "reason": f"Currency code {request.receiving_currency_code} in the pay request is not supported. We support only {','.join(str(currency_code) for currency_code in MSATS_PER_UNIT.keys())}.",
                 },
             )
-        receiver_fees_msats = RECEIVER_FEES_MSATS[request.currency_code]
+        receiver_fees_msats = RECEIVER_FEES_MSATS[request.receiving_currency_code]
 
         receiver_uma = user.get_uma_address(self.config)
         compliance_data = compliance_from_payer_data(request.payer_data)
@@ -222,8 +224,12 @@ class ReceivingVasp:
             self.compliance_service.pre_screen_transaction(
                 sending_uma_address=request.payer_data.get("identifier", ""),
                 receiving_uma_address=receiver_uma,
-                amount_msats=round(request.amount * msats_per_currency_unit)
-                + receiver_fees_msats,
+                amount_msats=(
+                    request.amount
+                    if request.sending_amount_currency_code is None
+                    else round(request.amount * msats_per_currency_unit)
+                    + receiver_fees_msats
+                ),
                 counterparty_node_id=compliance_data.node_pubkey,
                 counterparty_utxos=compliance_data.utxos,
             )
@@ -236,8 +242,10 @@ class ReceivingVasp:
                 self.lightspark_client, self.config
             ),
             metadata=metadata,
-            currency_code=request.currency_code,
-            currency_decimals=DECIMALS_PER_UNIT[request.currency_code],
+            receiving_currency_code=request.receiving_currency_code,
+            receiving_currency_decimals=DECIMALS_PER_UNIT[
+                request.receiving_currency_code
+            ],
             msats_per_currency_unit=msats_per_currency_unit,
             receiver_fees_msats=receiver_fees_msats,
             receiver_node_pubkey=node.public_key,
