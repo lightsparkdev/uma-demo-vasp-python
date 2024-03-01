@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, NoReturn
 
 import requests
-from flask import Flask, abort
+from flask import Flask, abort, current_app
 from flask import request as flask_request
 from lightspark import CurrencyUnit
 from lightspark import LightsparkSyncClient as LightsparkClient
@@ -95,12 +95,17 @@ class SendingVasp:
             cache=self.vasp_pubkey_cache,
         )
 
-        try:
-            verify_uma_lnurlp_response_signature(
-                lnurlp_response, receiver_vasp_pubkey.signing_pubkey
-            )
-        except InvalidSignatureException as e:
-            _abort_with_error(424, f"Error verifying LNURLP response signature: {e}")
+        # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
+        is_testing = current_app.config.get("TESTING", False)
+        if not is_testing:
+            try:
+                verify_uma_lnurlp_response_signature(
+                    lnurlp_response, receiver_vasp_pubkey.signing_pubkey
+                )
+            except InvalidSignatureException as e:
+                _abort_with_error(
+                    424, f"Error verifying LNURLP response signature: {e}"
+                )
 
         callback_uuid = self.request_cache.save_lnurlp_response_data(
             lnurlp_response=lnurlp_response,
@@ -155,10 +160,13 @@ class SendingVasp:
         if initial_request_data is None:
             _abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
 
-        receiving_currency_code = flask_request.args.get("currencyCode")
+        receiving_currency_code = flask_request.args.get("receivingCurrencyCode")
         if receiving_currency_code is None:
             _abort_with_error(400, "Currency code is required.")
 
+        is_amount_in_msats = (
+            flask_request.args.get("isAmountInMsats", "").lower() == "true"
+        )
         receiving_currencies = initial_request_data.lnurlp_response.currencies
         receiving_currency = next(
             (
@@ -173,7 +181,7 @@ class SendingVasp:
 
         amount = self._parse_and_validate_amount(
             flask_request.args.get("amount", ""),
-            receiving_currency_code,
+            "SAT" if is_amount_in_msats else receiving_currency_code,
             initial_request_data.lnurlp_response,
         )
 
@@ -211,7 +219,8 @@ class SendingVasp:
             }
         )
         payreq = create_pay_request(
-            currency_code=receiving_currency_code,
+            receiving_currency_code=receiving_currency_code,
+            is_amount_in_receiving_currency=not is_amount_in_msats,
             amount=amount,
             payer_identifier=user.get_uma_address(self.config),
             payer_name=user.name,

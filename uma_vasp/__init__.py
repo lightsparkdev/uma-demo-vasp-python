@@ -14,7 +14,7 @@ from uma_vasp.sending_vasp import SendingVasp
 from uma_vasp.sending_vasp import register_routes as register_sending_vasp_routes
 
 
-def create_app(config=None):
+def create_app(config=None, lightspark_client=None):
     app = Flask(__name__)
     user_service = DemoUserService()
     if config is None:
@@ -24,12 +24,13 @@ def create_app(config=None):
     host = None
     if config.base_url:
         host = config.base_url.split("://")[1].split("/")[0]
-    lightspark_client = LightsparkSyncClient(
-        api_token_client_id=config.api_token_client_id,
-        api_token_client_secret=config.api_token_client_secret,
-        base_url=config.base_url,
-        http_host=host,
-    )
+    if lightspark_client is None:
+        lightspark_client = LightsparkSyncClient(
+            api_token_client_id=config.api_token_client_id,
+            api_token_client_secret=config.api_token_client_secret,
+            base_url=config.base_url,
+            http_host=host,
+        )
     compliance_service = DemoComplianceService(lightspark_client, config)
 
     receiving_vasp = ReceivingVasp(
