@@ -465,7 +465,8 @@ class SendingVasp:
             self._send_post_tx_callback(payment, payreq_data.utxo_callback)
 
         return {
-            
+            "paymentId": payment.id,
+            "status": payment.status.value,
         }
 
     def _parse_and_validate_amount(
