@@ -3,6 +3,7 @@ from typing import Optional
 
 from flask import request
 from lightspark import ComplianceProvider
+from uma import is_domain_local
 
 
 class Config:
@@ -100,7 +101,9 @@ class Config:
         return parts[-2]
 
     def get_complete_url(self, path: str) -> str:
-        return f"http://{self.get_uma_domain()}{path}"
+        domain = self.get_uma_domain()
+        protocol = "http" if is_domain_local(domain) else "https"
+        return f"{protocol}://{self.get_uma_domain()}{path}"
 
 
 def require_env(env_var_name):

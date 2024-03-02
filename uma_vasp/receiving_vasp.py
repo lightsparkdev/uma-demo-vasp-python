@@ -8,13 +8,15 @@ from uma import (
     IUmaInvoiceCreator,
     KycStatus,
     LnurlpRequest,
+    LnurlpResponse,
     PayRequest,
+    PayReqResponse,
     compliance_from_payer_data,
     create_counterparty_data_options,
-    create_lnurlp_response,
+    create_uma_lnurlp_response,
     create_pay_req_response,
     fetch_public_key_for_vasp,
-    is_uma_lnurlp_query,
+    none_throws,
     parse_lnurlp_request,
     parse_pay_request,
     verify_pay_request_signature,
@@ -53,11 +55,7 @@ class ReceivingVasp:
         self.config = config
 
     def handle_lnurlp_request(self, username: str):
-        if not is_uma_lnurlp_query(flask_request.url):
-            # TODO: Fallback to raw lnurl.
-            print("Not a UMA LNURLP query")
-
-        print(f"Handling UMA LNURLP query for user {username}")
+        print(f"Handling LNURLP query for user {username}")
         lnurlp_request: LnurlpRequest
         try:
             lnurlp_request = parse_lnurlp_request(flask_request.url)
@@ -71,8 +69,21 @@ class ReceivingVasp:
                 },
             )
 
+        user = self.user_service.get_user_from_uma_user_name(username)
+        if not user:
+            abort(
+                404,
+                {
+                    "status": "ERROR",
+                    "reason": f"Cannot find user {lnurlp_request.receiver_address}",
+                },
+            )
+
+        if not lnurlp_request.is_uma_request():
+            return self._handle_non_uma_lnurlp_request(user).to_dict()
+
         if not self.compliance_service.should_accept_transaction_from_vasp(
-            lnurlp_request.vasp_domain, lnurlp_request.receiver_address
+            none_throws(lnurlp_request.vasp_domain), lnurlp_request.receiver_address
         ):
             abort(
                 403,
@@ -85,7 +96,7 @@ class ReceivingVasp:
         sender_vasp_signing_pubkey: bytes
         try:
             sender_vasp_signing_pubkey = fetch_public_key_for_vasp(
-                lnurlp_request.vasp_domain, self.vasp_pubkey_cache
+                none_throws(lnurlp_request.vasp_domain), self.vasp_pubkey_cache
             ).signing_pubkey
         except Exception as e:
             abort(
@@ -93,16 +104,6 @@ class ReceivingVasp:
                 {
                     "status": "ERROR",
                     "reason": f"Cannot fetch public key for vasp {lnurlp_request.vasp_domain}: {e}",
-                },
-            )
-
-        user = self.user_service.get_user_from_uma_user_name(username)
-        if not user:
-            abort(
-                404,
-                {
-                    "status": "ERROR",
-                    "reason": f"Cannot find user {lnurlp_request.receiver_address}",
                 },
             )
 
@@ -134,7 +135,7 @@ class ReceivingVasp:
         )
         callback = self.config.get_complete_url(PAY_REQUEST_CALLBACK + user.id)
 
-        response = create_lnurlp_response(
+        response = create_uma_lnurlp_response(
             request=lnurlp_request,
             signing_private_key=self.config.get_signing_privkey(),
             requires_travel_rule_info=True,
@@ -149,6 +150,22 @@ class ReceivingVasp:
 
         return response.to_dict()
 
+    def _handle_non_uma_lnurlp_request(self, receiver_user: User) -> LnurlpResponse:
+        metadata = self._create_metadata(receiver_user)
+        return LnurlpResponse(
+            tag="payRequest",
+            callback=self.config.get_complete_url(
+                PAY_REQUEST_CALLBACK + receiver_user.id
+            ),
+            min_sendable=1_000,
+            max_sendable=10_000_000_000,
+            encoded_metadata=metadata,
+            currencies=[CURRENCIES[currency] for currency in receiver_user.currencies],
+            required_payer_data=None,
+            compliance=None,
+            uma_version=None,
+        )
+
     def handle_pay_request_callback(self, user_id: str):
         user = self.user_service.get_user_from_id(user_id)
         if not user:
@@ -162,7 +179,12 @@ class ReceivingVasp:
 
         request: PayRequest
         try:
-            request = parse_pay_request(flask_request.get_data(as_text=True))
+            request_data = (
+                flask_request.get_data(as_text=True)
+                if flask_request.method == "POST"
+                else json.dumps(flask_request.args)
+            )
+            request = parse_pay_request(request_data)
         except Exception as e:
             print(f"Invalid UMA pay request: {e}")
             abort(
@@ -172,10 +194,11 @@ class ReceivingVasp:
                     "reason": f"Invalid UMA pay request: {e}",
                 },
             )
+        if not request.is_uma_request():
+            return self._handle_non_uma_pay_request(request, user).to_dict()
 
-        vasp_domain = get_domain_from_uma_address(
-            request.payer_data.get("identifier", "")
-        )
+        payer_data = none_throws(request.payer_data)
+        vasp_domain = get_domain_from_uma_address(payer_data.get("identifier", ""))
         if not self.compliance_service.should_accept_transaction_from_vasp(
             vasp_domain, user.get_uma_address(self.config)
         ):
@@ -199,26 +222,25 @@ class ReceivingVasp:
                 other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
             )
 
-        metadata = self._create_metadata(user) + json.dumps(request.payer_data)
+        metadata = self._create_metadata(user) + json.dumps(payer_data)
 
-        msats_per_currency_unit = MSATS_PER_UNIT.get(
-            request.receiving_currency_code, None
-        )
+        receiving_currency_code = none_throws(request.receiving_currency_code)
+        msats_per_currency_unit = MSATS_PER_UNIT.get(receiving_currency_code, None)
         if msats_per_currency_unit is None:
             abort(
                 400,
                 {
                     "status": "ERROR",
-                    "reason": f"Currency code {request.receiving_currency_code} in the pay request is not supported. We support only {','.join(str(currency_code) for currency_code in MSATS_PER_UNIT.keys())}.",
+                    "reason": f"Currency code {receiving_currency_code} in the pay request is not supported. We support only {','.join(str(currency_code) for currency_code in MSATS_PER_UNIT.keys())}.",
                 },
             )
-        receiver_fees_msats = RECEIVER_FEES_MSATS[request.receiving_currency_code]
+        receiver_fees_msats = RECEIVER_FEES_MSATS[receiving_currency_code]
 
         receiver_uma = user.get_uma_address(self.config)
-        compliance_data = compliance_from_payer_data(request.payer_data)
+        compliance_data = compliance_from_payer_data(payer_data)
         if compliance_data:
             self.compliance_service.pre_screen_transaction(
-                sending_uma_address=request.payer_data.get("identifier", ""),
+                sending_uma_address=payer_data.get("identifier", ""),
                 receiving_uma_address=receiver_uma,
                 amount_msats=(
                     request.amount
@@ -238,10 +260,8 @@ class ReceivingVasp:
                 self.lightspark_client, self.config
             ),
             metadata=metadata,
-            receiving_currency_code=request.receiving_currency_code,
-            receiving_currency_decimals=DECIMALS_PER_UNIT[
-                request.receiving_currency_code
-            ],
+            receiving_currency_code=receiving_currency_code,
+            receiving_currency_decimals=DECIMALS_PER_UNIT[receiving_currency_code],
             msats_per_currency_unit=msats_per_currency_unit,
             receiver_fees_msats=receiver_fees_msats,
             receiver_node_pubkey=node.public_key,
@@ -260,6 +280,42 @@ class ReceivingVasp:
                 }
             ),
         ).to_dict()
+
+    def _handle_non_uma_pay_request(
+        self, request: PayRequest, receiver_user: User
+    ) -> PayReqResponse:
+        metadata = self._create_metadata(receiver_user)
+        if request.payer_data is not None:
+            metadata += json.dumps(request.payer_data)
+        return create_pay_req_response(
+            request=request,
+            invoice_creator=LightsparkInvoiceCreator(
+                self.lightspark_client, self.config
+            ),
+            metadata=metadata,
+            receiving_currency_code=request.receiving_currency_code,
+            receiving_currency_decimals=(
+                DECIMALS_PER_UNIT[request.receiving_currency_code]
+                if request.receiving_currency_code is not None
+                else None
+            ),
+            msats_per_currency_unit=(
+                MSATS_PER_UNIT.get(request.receiving_currency_code, None)
+                if request.receiving_currency_code is not None
+                else None
+            ),
+            receiver_fees_msats=(
+                RECEIVER_FEES_MSATS.get(request.receiving_currency_code, None)
+                if request.receiving_currency_code is not None
+                else None
+            ),
+            receiver_node_pubkey=None,
+            receiver_utxos=[],
+            utxo_callback=None,
+            payee_identifier=None,
+            signing_private_key=None,
+            payee_data=None,
+        )
 
     def _create_metadata(self, user: User) -> str:
         metadata = [
@@ -294,5 +350,9 @@ def register_routes(app: Flask, receiving_vasp: ReceivingVasp):
         return receiving_vasp.handle_lnurlp_request(username)
 
     @app.route(PAY_REQUEST_CALLBACK + "<user_id>", methods=["POST"])
-    def handle_pay_request_callback(user_id: str):
+    def handle_uma_pay_request_callback(user_id: str):
+        return receiving_vasp.handle_pay_request_callback(user_id)
+
+    @app.route(PAY_REQUEST_CALLBACK + "<user_id>", methods=["GET"])
+    def handle_lnurl_pay_request_callback(user_id: str):
         return receiving_vasp.handle_pay_request_callback(user_id)
