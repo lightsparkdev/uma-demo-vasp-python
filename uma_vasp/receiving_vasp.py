@@ -4,6 +4,7 @@ from flask import Flask, abort, current_app
 from flask import request as flask_request
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
+    INonceCache,
     IPublicKeyCache,
     IUmaInvoiceCreator,
     KycStatus,
@@ -47,12 +48,14 @@ class ReceivingVasp:
         lightspark_client: LightsparkClient,
         pubkey_cache: IPublicKeyCache,
         config: Config,
+        nonce_cache: INonceCache,
     ) -> None:
         self.user_service = user_service
         self.compliance_service = compliance_service
         self.vasp_pubkey_cache = pubkey_cache
         self.lightspark_client = lightspark_client
         self.config = config
+        self.nonce_cache = nonce_cache
 
     def handle_lnurlp_request(self, username: str):
         print(f"Handling LNURLP query for user {username}")
@@ -93,11 +96,10 @@ class ReceivingVasp:
                 },
             )
 
-        sender_vasp_signing_pubkey: bytes
         try:
-            sender_vasp_signing_pubkey = fetch_public_key_for_vasp(
+            sender_vasp_pubkey_response = fetch_public_key_for_vasp(
                 none_throws(lnurlp_request.vasp_domain), self.vasp_pubkey_cache
-            ).signing_pubkey
+            )
         except Exception as e:
             abort(
                 424,
@@ -113,7 +115,8 @@ class ReceivingVasp:
             try:
                 verify_uma_lnurlp_query_signature(
                     request=lnurlp_request,
-                    other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
+                    other_vasp_pubkeys=sender_vasp_pubkey_response,
+                    nonce_cache=self.nonce_cache,
                 )
             except Exception as e:
                 abort(
@@ -213,13 +216,14 @@ class ReceivingVasp:
         # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
         is_testing = current_app.config.get("TESTING", False)
         if not is_testing:
-            sender_vasp_signing_pubkey = fetch_public_key_for_vasp(
+            sender_vasp_pubkeys = fetch_public_key_for_vasp(
                 vasp_domain=vasp_domain,
                 cache=self.vasp_pubkey_cache,
-            ).signing_pubkey
+            )
             verify_pay_request_signature(
                 request=request,
-                other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
+                other_vasp_pubkeys=sender_vasp_pubkeys,
+                nonce_cache=self.nonce_cache,
             )
 
         metadata = self._create_metadata(user) + json.dumps(payer_data)

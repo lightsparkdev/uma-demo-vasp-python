@@ -10,6 +10,7 @@ from lightspark import CurrencyUnit
 from lightspark import LightsparkSyncClient as LightsparkClient
 from lightspark import OutgoingPayment, PaymentDirection, TransactionStatus
 from uma import (
+    INonceCache,
     InvalidSignatureException,
     IPublicKeyCache,
     LnurlpResponse,
@@ -50,6 +51,7 @@ class SendingVasp:
         pubkey_cache: IPublicKeyCache,
         request_cache: ISendingVaspRequestCache,
         config: Config,
+        nonce_cache: INonceCache,
     ) -> None:
         self.user_service = user_service
         self.compliance_service = compliance_service
@@ -57,6 +59,7 @@ class SendingVasp:
         self.lightspark_client = lightspark_client
         self.request_cache = request_cache
         self.config = config
+        self.nonce_cache = nonce_cache
 
     def handle_uma_lookup(self, receiver_uma: str):
         user = self._get_calling_user_or_abort()
@@ -109,7 +112,7 @@ class SendingVasp:
         if not is_testing:
             try:
                 verify_uma_lnurlp_response_signature(
-                    lnurlp_response, receiver_vasp_pubkey.signing_pubkey
+                    lnurlp_response, receiver_vasp_pubkey, self.nonce_cache
                 )
             except InvalidSignatureException as e:
                 _abort_with_error(
@@ -242,7 +245,7 @@ class SendingVasp:
         node = get_node(self.lightspark_client, self.config.node_id)
 
         payer_compliance = create_compliance_payer_data(
-            receiver_encryption_pubkey=receiver_vasp_pubkey.encryption_pubkey,
+            receiver_encryption_pubkey=receiver_vasp_pubkey.get_encryption_pubkey(),
             signing_private_key=self.config.get_signing_privkey(),
             payer_identifier=user.get_uma_address(self.config),
             payer_kyc_status=user.kyc_status,
