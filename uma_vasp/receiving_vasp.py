@@ -12,6 +12,7 @@ from uma import (
     LnurlpResponse,
     PayRequest,
     PayReqResponse,
+    PubkeyResponse,
     compliance_from_payer_data,
     create_counterparty_data_options,
     create_uma_lnurlp_response,
@@ -96,6 +97,7 @@ class ReceivingVasp:
                 },
             )
 
+        sender_vasp_pubkey_response: PubkeyResponse
         try:
             sender_vasp_pubkey_response = fetch_public_key_for_vasp(
                 none_throws(lnurlp_request.vasp_domain), self.vasp_pubkey_cache
