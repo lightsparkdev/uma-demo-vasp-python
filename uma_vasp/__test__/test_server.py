@@ -22,14 +22,29 @@ def fake_lightspark_client():
 
 @pytest.fixture()
 def config():
+    cert = """-----BEGIN CERTIFICATE-----
+        MIIB1zCCAXygAwIBAgIUGN3ihBj1RnKoeTM/auDFnNoThR4wCgYIKoZIzj0EAwIw
+        QjELMAkGA1UEBhMCVVMxEzARBgNVBAgMCmNhbGlmb3JuaWExDjAMBgNVBAcMBWxv
+        cyBhMQ4wDAYDVQQKDAVsaWdodDAeFw0yNDAzMDUyMTAzMTJaFw0yNDAzMTkyMTAz
+        MTJaMEIxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApjYWxpZm9ybmlhMQ4wDAYDVQQH
+        DAVsb3MgYTEOMAwGA1UECgwFbGlnaHQwVjAQBgcqhkjOPQIBBgUrgQQACgNCAARB
+        nFRn6lY/ABD9YU+F6IWsmcIbjo1BYkEXX91e/SJE/pB+Lm+j3WYxsbF80oeY2o2I
+        KjTEd21EzECQeBx6reobo1MwUTAdBgNVHQ4EFgQUU87LnQdiP6XIE6LoKU1PZnbt
+        bMwwHwYDVR0jBBgwFoAUU87LnQdiP6XIE6LoKU1PZnbtbMwwDwYDVR0TAQH/BAUw
+        AwEB/zAKBggqhkjOPQQDAgNJADBGAiEAvsrvoeo3rbgZdTHxEUIgP0ArLyiO34oz
+        NlwL4gk5GpgCIQCvRx4PAyXNV9T6RRE+3wFlqwluOc/pPOjgdRw/wpoNPQ==
+        -----END CERTIFICATE-----"""
+    pubkey_hex = "04419c5467ea563f0010fd614f85e885ac99c21b8e8d416241175fdd5efd2244fe907e2e6fa3dd6631b1b17cd28798da8d882a34c4776d44cc4090781c7aadea1b"
     # TODO: Use real values when we have tests that need them.
     return Config(
         api_token_client_id="abcdef",
         api_token_client_secret="123456",
         node_id="nodeid",
-        encryption_pubkey_hex="abcdef",
+        encryption_cert_chain=cert,
+        encryption_pubkey_hex=pubkey_hex,
         encryption_privkey_hex="abcdef",
-        signing_pubkey_hex="abcdef",
+        signing_cert_chain=cert,
+        signing_pubkey_hex=pubkey_hex,
         signing_privkey_hex="abcdef",
     )
 
