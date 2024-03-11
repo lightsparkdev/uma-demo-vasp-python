@@ -14,18 +14,19 @@ from uma import (
     InvalidSignatureException,
     IPublicKeyCache,
     LnurlpResponse,
+    ParsedVersion,
     PayReqResponse,
     UtxoWithAmount,
-    compliance_from_payee_data,
     create_compliance_payer_data,
     create_counterparty_data_options,
-    create_uma_lnurlp_request_url,
     create_pay_request,
+    create_uma_lnurlp_request_url,
     fetch_public_key_for_vasp,
     none_throws,
     parse_lnurlp_response,
     parse_pay_req_response,
     select_highest_supported_version,
+    verify_pay_req_response_signature,
     verify_uma_lnurlp_response_signature,
 )
 
@@ -99,7 +100,7 @@ class SendingVasp:
             _abort_with_error(424, f"Error parsing LNURLP response: {e}")
 
         if not lnurlp_response.is_uma_response():
-            print(f"Handling as regular LNURLP response.")
+            print("Handling as regular LNURLP response.")
             return self._handle_as_non_uma_lnurl_response(lnurlp_response, receiver_uma)
 
         receiver_vasp_pubkey = fetch_public_key_for_vasp(
@@ -270,6 +271,9 @@ class SendingVasp:
                 "name": False,
             }
         )
+        uma_version = initial_request_data.lnurlp_response.uma_version
+        if uma_version is not None:
+            uma_version = ParsedVersion.load(uma_version).major
         payreq = create_pay_request(
             receiving_currency_code=receiving_currency_code,
             is_amount_in_receiving_currency=not is_amount_in_msats,
@@ -279,6 +283,7 @@ class SendingVasp:
             payer_email=user.email_address,
             payer_compliance=payer_compliance,
             requested_payee_data=requested_payee_data,
+            uma_major_version=uma_version or 1,
         )
 
         res = requests.post(
@@ -301,9 +306,23 @@ class SendingVasp:
         if not payreq_response.is_uma_response():
             _abort_with_error(424, "Response to UMA payreq is not a UMA response.")
 
-        compliance = compliance_from_payee_data(none_throws(payreq_response.payee_data))
+        compliance = none_throws(payreq_response.get_compliance())
         if not compliance:
             _abort_with_error(424, "No compliance data in pay request response.")
+
+        if uma_version == 1:
+            try:
+                verify_pay_req_response_signature(
+                    user.get_uma_address(self.config),
+                    initial_request_data.receiver_uma,
+                    payreq_response,
+                    receiver_vasp_pubkey,
+                    self.nonce_cache,
+                )
+            except InvalidSignatureException as e:
+                _abort_with_error(
+                    424, f"Error verifying payreq response signature: {e}"
+                )
 
         payment_info = none_throws(payreq_response.payment_info)
         if not self.compliance_service.pre_screen_transaction(
@@ -368,6 +387,7 @@ class SendingVasp:
             payer_email=None,
             payer_compliance=None,
             requested_payee_data=None,
+            uma_major_version=1,  # Use the new LUD-21 fields.
         )
 
         res = requests.get(
