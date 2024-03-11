@@ -1,6 +1,7 @@
+from datetime import datetime, timezone
 from flask import Flask, request
 from lightspark import LightsparkSyncClient
-from uma import InMemoryPublicKeyCache
+from uma import InMemoryPublicKeyCache, InMemoryNonceCache, create_pubkey_response
 
 from uma_vasp.config import Config
 from uma_vasp.demo.demo_compliance_service import DemoComplianceService
@@ -20,6 +21,7 @@ def create_app(config=None, lightspark_client=None):
     if config is None:
         config = Config.from_env()
     pubkey_cache = InMemoryPublicKeyCache()
+    nonce_cache = InMemoryNonceCache(datetime.now(timezone.utc))
 
     host = None
     if config.base_url:
@@ -39,6 +41,7 @@ def create_app(config=None, lightspark_client=None):
         lightspark_client=lightspark_client,
         pubkey_cache=pubkey_cache,
         config=config,
+        nonce_cache=nonce_cache,
     )
 
     sending_vasp = SendingVasp(
@@ -48,14 +51,14 @@ def create_app(config=None, lightspark_client=None):
         pubkey_cache=pubkey_cache,
         request_cache=InMemorySendingVaspRequestCache(),
         config=config,
+        nonce_cache=nonce_cache,
     )
 
     @app.route("/.well-known/lnurlpubkey")
     def handle_public_key_request():
-        return {
-            "signingPubKey": config.signing_pubkey_hex,
-            "encryptionPubKey": config.encryption_pubkey_hex,
-        }
+        return create_pubkey_response(
+            config.signing_cert_chain, config.encryption_cert_chain
+        ).to_dict()
 
     @app.route("/api/uma/utxoCallback", methods=["POST"])
     def handle_utxo_callback():
