@@ -1,12 +1,10 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d1c77274f3261bebef7882b67c02ff1734ce57e129ed9f562776a9538612248d"
+            "sha256": "836a5d27c9c56f093215518bc4358d85b60304995c84acdb2982e7e775786170"
         },
         "pipfile-spec": 6,
-        "requires": {
-            "python_version": "3.11"
-        },
+        "requires": {},
         "sources": [
             {
                 "name": "pypi",
@@ -407,11 +405,11 @@
         },
         "eth-hash": {
             "hashes": [
-                "sha256:9f8daaa345764f8871dc461855049ac54ae4291d780279bce6fce7f24e3f17d3",
-                "sha256:ae72889e60db6acbb3872c288cfa02ed157f4c27630fcd7f9c8442302c31e478"
+                "sha256:b8d5a230a2b251f4a291e3164a23a14057c4a6de4b0aa4a16fa4dc9161b57e2f",
+                "sha256:bacdc705bfd85dadd055ecd35fd1b4f846b671add101427e089a4ca2e8db310a"
             ],
             "markers": "python_version >= '3.8' and python_version < '4'",
-            "version": "==0.6.0"
+            "version": "==0.7.0"
         },
         "eth-keys": {
             "hashes": [
@@ -425,7 +423,7 @@
                 "sha256:1842e628fb1ffa929b94f89a9d33caafbeb9978dc96abb6036a12bc91f1c624b",
                 "sha256:22bf051ddfaa35ff827c30090de167e5c5b8cc6d343f7f35c9b1c7553f6ab64d"
             ],
-            "markers": "python_full_version >= '3.7.2' and python_version < '4'",
+            "markers": "python_version < '4' and python_full_version >= '3.7.2'",
             "version": "==3.5.2"
         },
         "eth-utils": {
@@ -470,10 +468,10 @@
         },
         "lightspark": {
             "hashes": [
-                "sha256:8692e77c15c5c29fa9d8bd399abec7846f5e6b3e4472c686a7577fa58a965967"
+                "sha256:2f0c84a0dee31c1f4b55c5eb68f086e54559864af9368999899c641284d44ca0"
             ],
             "index": "pypi",
-            "version": "==2.5.1"
+            "version": "==2.6.0"
         },
         "lightspark-crypto-python": {
             "hashes": [
@@ -650,7 +648,7 @@
         },
         "uma-sdk": {
             "hashes": [
-                "sha256:72b25a664130386a2760513fd2e32a078d479b62e32af2cf2d55744c7262f22b"
+                "sha256:6a6513a87f9caed6d89e066ac8990a39690d66e69a71acaceb32ec7f3b19634b"
             ],
             "path": "./uma-sdk-1.0.0a1.zip",
             "version": "==1.0.0a1"
@@ -788,11 +786,11 @@
         },
         "marshmallow": {
             "hashes": [
-                "sha256:20f53be28c6e374a711a16165fb22a8dc6003e3f7cda1285e3ca777b9193885b",
-                "sha256:e7997f83571c7fd476042c2c188e4ee8a78900ca5e74bd9c8097afa56624e9bd"
+                "sha256:4e65e9e0d80fc9e609574b9983cf32579f305c718afb30d7233ab818571768c3",
+                "sha256:f085493f79efb0644f270a9bf2892843142d80d7174bbbd2f3713f2a589dc633"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==3.21.0"
+            "version": "==3.21.1"
         },
         "mccabe": {
             "hashes": [
@@ -812,11 +810,11 @@
         },
         "packaging": {
             "hashes": [
-                "sha256:048fb0e9405036518eaaf48a55953c750c11e1a1b68e0dd1a9d62ed0c092cfc5",
-                "sha256:8c491190033a9af7e1d931d0b5dacc2ef47509b34dd0de67ed209b5203fc88c7"
+                "sha256:2ddfb553fdf02fb784c234c7ba6ccc288296ceabec964ad2eae3777778130bc5",
+                "sha256:eb82c5e3e56209074766e6885bb04b8c38a0c015d0a30036ebe7ece34c9989e9"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==23.2"
+            "version": "==24.0"
         },
         "pathspec": {
             "hashes": [
@@ -898,11 +896,11 @@
         },
         "pytest": {
             "hashes": [
-                "sha256:d4051d623a2e0b7e51960ba963193b09ce6daeb9759a451844a21e4ddedfc1bd",
-                "sha256:edfaaef32ce5172d5466b5127b42e0d6d35ebbe4453f0e3505d96afd93f6b096"
+                "sha256:2a8386cfc11fa9d2c50ee7b2a57e7d898ef90470a7a34c4b949ff59662bb78b7",
+                "sha256:ac978141a75948948817d360297b7aae0fcb9d6ff6bc9ec6d514b85d5a65c044"
             ],
             "index": "pypi",
-            "version": "==8.0.2"
+            "version": "==8.1.1"
         },
         "pyyaml": {
             "hashes": [

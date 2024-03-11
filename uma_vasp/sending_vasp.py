@@ -274,6 +274,7 @@ class SendingVasp:
         uma_version = initial_request_data.lnurlp_response.uma_version
         if uma_version is not None:
             uma_version = ParsedVersion.load(uma_version).major
+        print(f"Payreq using UMA version {uma_version}")
         payreq = create_pay_request(
             receiving_currency_code=receiving_currency_code,
             is_amount_in_receiving_currency=not is_amount_in_msats,
@@ -283,8 +284,9 @@ class SendingVasp:
             payer_email=user.email_address,
             payer_compliance=payer_compliance,
             requested_payee_data=requested_payee_data,
-            uma_major_version=uma_version or 1,
+            uma_major_version=uma_version if uma_version is not None else 1,
         )
+        print(f"Payreq: {payreq.to_dict()}")
 
         res = requests.post(
             initial_request_data.lnurlp_response.callback,
