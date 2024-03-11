@@ -1,10 +1,12 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "836a5d27c9c56f093215518bc4358d85b60304995c84acdb2982e7e775786170"
+            "sha256": "d1c77274f3261bebef7882b67c02ff1734ce57e129ed9f562776a9538612248d"
         },
         "pipfile-spec": 6,
-        "requires": {},
+        "requires": {
+            "python_version": "3.11"
+        },
         "sources": [
             {
                 "name": "pypi",
@@ -405,11 +407,11 @@
         },
         "eth-hash": {
             "hashes": [
-                "sha256:b8d5a230a2b251f4a291e3164a23a14057c4a6de4b0aa4a16fa4dc9161b57e2f",
-                "sha256:bacdc705bfd85dadd055ecd35fd1b4f846b671add101427e089a4ca2e8db310a"
+                "sha256:9f8daaa345764f8871dc461855049ac54ae4291d780279bce6fce7f24e3f17d3",
+                "sha256:ae72889e60db6acbb3872c288cfa02ed157f4c27630fcd7f9c8442302c31e478"
             ],
             "markers": "python_version >= '3.8' and python_version < '4'",
-            "version": "==0.7.0"
+            "version": "==0.6.0"
         },
         "eth-keys": {
             "hashes": [
@@ -423,7 +425,7 @@
                 "sha256:1842e628fb1ffa929b94f89a9d33caafbeb9978dc96abb6036a12bc91f1c624b",
                 "sha256:22bf051ddfaa35ff827c30090de167e5c5b8cc6d343f7f35c9b1c7553f6ab64d"
             ],
-            "markers": "python_version < '4' and python_full_version >= '3.7.2'",
+            "markers": "python_full_version >= '3.7.2' and python_version < '4'",
             "version": "==3.5.2"
         },
         "eth-utils": {
@@ -468,10 +470,10 @@
         },
         "lightspark": {
             "hashes": [
-                "sha256:2f0c84a0dee31c1f4b55c5eb68f086e54559864af9368999899c641284d44ca0"
+                "sha256:8692e77c15c5c29fa9d8bd399abec7846f5e6b3e4472c686a7577fa58a965967"
             ],
             "index": "pypi",
-            "version": "==2.6.0"
+            "version": "==2.5.1"
         },
         "lightspark-crypto-python": {
             "hashes": [
