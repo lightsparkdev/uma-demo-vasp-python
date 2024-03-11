@@ -109,6 +109,7 @@ def test_payreq_with_msats(client, fake_lightspark_client):
     invoice_amount = amount_as_msats(invoice.data.amount)
     assert invoice_amount == 1_000_000
 
+
 def test_v0_payreq(client, fake_lightspark_client):
     payreq = uma.create_pay_request(
         receiving_currency_code="USD",
