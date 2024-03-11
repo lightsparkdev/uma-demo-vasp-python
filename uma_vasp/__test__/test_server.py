@@ -95,6 +95,7 @@ def test_payreq_with_msats(client, fake_lightspark_client):
         requested_payee_data=None,
         uma_major_version=1,
     )
+    print(payreq)
     response = client.post(
         "/api/uma/payreq/1",
         json=payreq.to_dict(),
