@@ -650,7 +650,7 @@
         },
         "uma-sdk": {
             "hashes": [
-                "sha256:6098edd97a8fb1d6fe8cdba663c03fcfd670e9cfbfcd0d265f0813a5c9786670"
+                "sha256:6a6513a87f9caed6d89e066ac8990a39690d66e69a71acaceb32ec7f3b19634b"
             ],
             "path": "./uma-sdk-1.0.0a1.zip",
             "version": "==1.0.0a1"

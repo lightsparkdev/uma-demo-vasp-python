@@ -67,6 +67,7 @@ def test_payreq_with_receiving_amount(client, fake_lightspark_client):
         payer_email=None,
         payer_compliance=None,
         requested_payee_data=None,
+        uma_major_version=1,
     )
     response = client.post(
         "/api/uma/payreq/1",
@@ -92,7 +93,9 @@ def test_payreq_with_msats(client, fake_lightspark_client):
         payer_email=None,
         payer_compliance=None,
         requested_payee_data=None,
+        uma_major_version=1,
     )
+    print(payreq)
     response = client.post(
         "/api/uma/payreq/1",
         json=payreq.to_dict(),
@@ -105,3 +108,29 @@ def test_payreq_with_msats(client, fake_lightspark_client):
     assert invoice is not None
     invoice_amount = amount_as_msats(invoice.data.amount)
     assert invoice_amount == 1_000_000
+
+
+def test_v0_payreq(client, fake_lightspark_client):
+    payreq = uma.create_pay_request(
+        receiving_currency_code="USD",
+        is_amount_in_receiving_currency=True,
+        amount=100,
+        payer_identifier="$alice@vasp.com",
+        payer_name=None,
+        payer_email=None,
+        payer_compliance=None,
+        requested_payee_data=None,
+        uma_major_version=0,
+    )
+    response = client.post(
+        "/api/uma/payreq/1",
+        json=payreq.to_dict(),
+    )
+    assert response.status_code == 200
+    payreq_response = uma.parse_pay_req_response(response.get_data(as_text=True))
+    assert payreq_response.encoded_invoice is not None
+
+    invoice = fake_lightspark_client.last_created_invoice
+    assert invoice is not None
+    invoice_amount = amount_as_msats(invoice.data.amount)
+    assert invoice_amount == 100 * MSATS_PER_UNIT["USD"] + RECEIVER_FEES_MSATS["USD"]

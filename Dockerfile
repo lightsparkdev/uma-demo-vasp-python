@@ -23,6 +23,8 @@ EXPOSE 9000
 
 ENV FLASK_APP=uma_vasp
 ENV FLASK_RUN_PORT=9000
+# log everything to stdout:
+ENV PYTHONUNBUFFERED True
 
 # Start the Flask app
 CMD ["flask", "run", "--host", "0.0.0.0"]
