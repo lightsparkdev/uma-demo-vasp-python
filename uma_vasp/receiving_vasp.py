@@ -277,14 +277,7 @@ class ReceivingVasp:
             ),
             payee_identifier=receiver_uma,
             signing_private_key=self.config.get_signing_privkey(),
-            payee_data=create_counterparty_data_options(
-                {
-                    "name": False,
-                    "email": False,
-                    "identifier": True,
-                    "compliance": True,
-                }
-            ),
+            payee_data=None,
         ).to_dict()
 
     def _handle_non_uma_pay_request(
