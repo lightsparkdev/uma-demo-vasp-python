@@ -10,6 +10,7 @@ from lightspark import LightsparkSyncClient as LightsparkClient
 from lightspark import OutgoingPayment, PaymentDirection, TransactionStatus
 from uma import (
     InvalidSignatureException,
+    INonceCache,
     IPublicKeyCache,
     LnurlpResponse,
     PayReqResponse,
@@ -43,6 +44,7 @@ class SendingVasp:
         pubkey_cache: IPublicKeyCache,
         request_cache: ISendingVaspRequestCache,
         config: Config,
+        nonce_cache: INonceCache,
     ) -> None:
         self.user_service = user_service
         self.compliance_service = compliance_service
@@ -50,6 +52,7 @@ class SendingVasp:
         self.lightspark_client = lightspark_client
         self.request_cache = request_cache
         self.config = config
+        self.nonce_cache = nonce_cache
 
     def handle_uma_lookup(self, receiver_uma: str):
         user = self._get_calling_user_or_abort()
@@ -95,7 +98,7 @@ class SendingVasp:
 
         try:
             verify_uma_lnurlp_response_signature(
-                lnurlp_response, receiver_vasp_pubkey.signing_pubkey
+                lnurlp_response, receiver_vasp_pubkey.signing_pubkey, self.nonce_cache
             )
         except InvalidSignatureException as e:
             _abort_with_error(424, f"Error verifying LNURLP response signature: {e}")

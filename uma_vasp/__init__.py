@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
 import json
+
 from flask import Flask, jsonify, request
 from lightspark import LightsparkSyncClient
-from uma import InMemoryPublicKeyCache, UnsupportedVersionException
+from uma import InMemoryNonceCache, InMemoryPublicKeyCache, UnsupportedVersionException
 
 from uma_vasp.config import Config
 from uma_vasp.demo.demo_compliance_service import DemoComplianceService
@@ -32,6 +34,7 @@ def create_app(config=None):
         http_host=host,
     )
     compliance_service = DemoComplianceService(lightspark_client, config)
+    nonce_cache = InMemoryNonceCache(datetime.now(timezone.utc))
 
     receiving_vasp = ReceivingVasp(
         user_service=user_service,
@@ -39,6 +42,7 @@ def create_app(config=None):
         lightspark_client=lightspark_client,
         pubkey_cache=pubkey_cache,
         config=config,
+        nonce_cache=nonce_cache,
     )
 
     sending_vasp = SendingVasp(
@@ -48,6 +52,7 @@ def create_app(config=None):
         pubkey_cache=pubkey_cache,
         request_cache=InMemorySendingVaspRequestCache(),
         config=config,
+        nonce_cache=nonce_cache,
     )
 
     @app.route("/.well-known/lnurlpubkey")

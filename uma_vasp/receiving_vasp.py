@@ -4,6 +4,7 @@ from flask import Flask, abort
 from flask import request as flask_request
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
+    INonceCache,
     IPublicKeyCache,
     IUmaInvoiceCreator,
     KycStatus,
@@ -45,12 +46,14 @@ class ReceivingVasp:
         lightspark_client: LightsparkClient,
         pubkey_cache: IPublicKeyCache,
         config: Config,
+        nonce_cache: INonceCache,
     ) -> None:
         self.user_service = user_service
         self.compliance_service = compliance_service
         self.vasp_pubkey_cache = pubkey_cache
         self.lightspark_client = lightspark_client
         self.config = config
+        self.nonce_cache = nonce_cache
 
     def handle_lnurlp_request(self, username: str):
         if not is_uma_lnurlp_query(flask_request.url):
@@ -112,6 +115,7 @@ class ReceivingVasp:
             verify_uma_lnurlp_query_signature(
                 request=lnurlp_request,
                 other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
+                nonce_cache=self.nonce_cache,
             )
         except Exception as e:
             abort(
@@ -197,6 +201,7 @@ class ReceivingVasp:
         verify_pay_request_signature(
             request=request,
             other_vasp_signing_pubkey=sender_vasp_signing_pubkey,
+            nonce_cache=self.nonce_cache,
         )
 
         metadata = (
