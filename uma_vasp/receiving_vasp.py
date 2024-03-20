@@ -10,6 +10,7 @@ from uma import (
     LnurlpRequest,
     PayerDataOptions,
     PayRequest,
+    UnsupportedVersionException,
     create_lnurlp_response,
     create_pay_req_response,
     fetch_public_key_for_vasp,
@@ -60,6 +61,8 @@ class ReceivingVasp:
         lnurlp_request: LnurlpRequest
         try:
             lnurlp_request = parse_lnurlp_request(flask_request.url)
+        except UnsupportedVersionException as e:
+            raise e
         except Exception as e:
             print(f"Invalid UMA lnurlp request: {e}")
             abort(

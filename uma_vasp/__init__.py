@@ -1,6 +1,7 @@
-from flask import Flask, request
+import json
+from flask import Flask, jsonify, request
 from lightspark import LightsparkSyncClient
-from uma import InMemoryPublicKeyCache
+from uma import InMemoryPublicKeyCache, UnsupportedVersionException
 
 from uma_vasp.config import Config
 from uma_vasp.demo.demo_compliance_service import DemoComplianceService
@@ -61,6 +62,10 @@ def create_app(config=None):
         print(f"Received UTXO callback for {request.args.get('txid')}")
         print(request.json)
         return "OK"
+
+    @app.errorhandler(UnsupportedVersionException)
+    def unsupported_version(e):
+        return jsonify(json.loads(e.to_json())), 412
 
     register_receiving_vasp_routes(app, receiving_vasp)
     register_sending_vasp_routes(app, sending_vasp)
