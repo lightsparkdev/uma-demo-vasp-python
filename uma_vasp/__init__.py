@@ -66,7 +66,7 @@ def create_app(config=None, lightspark_client=None):
         print(f"Received UTXO callback for {request.args.get('txid')}")
         print(request.json)
         return "OK"
-        
+
     @app.errorhandler(UmaException)
     def invalid_api_usage(e):
         return jsonify(e.to_dict()), e.status_code
