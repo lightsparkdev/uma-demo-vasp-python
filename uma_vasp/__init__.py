@@ -1,7 +1,13 @@
 from datetime import datetime, timezone
+import json
 from flask import Flask, jsonify, request
 from lightspark import LightsparkSyncClient
-from uma import InMemoryPublicKeyCache, InMemoryNonceCache, create_pubkey_response
+from uma import (
+    InMemoryPublicKeyCache,
+    InMemoryNonceCache,
+    UnsupportedVersionException,
+    create_pubkey_response,
+)
 
 from uma_vasp.config import Config
 from uma_vasp.demo.demo_compliance_service import DemoComplianceService
@@ -70,6 +76,10 @@ def create_app(config=None, lightspark_client=None):
     @app.errorhandler(UmaException)
     def invalid_api_usage(e):
         return jsonify(e.to_dict()), e.status_code
+
+    @app.errorhandler(UnsupportedVersionException)
+    def unsupported_version(e):
+        return jsonify(json.loads(e.to_json())), 412
 
     register_receiving_vasp_routes(app, receiving_vasp)
     register_sending_vasp_routes(app, sending_vasp)
