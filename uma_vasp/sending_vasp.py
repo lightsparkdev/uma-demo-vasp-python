@@ -1,10 +1,9 @@
-import json
 import time
 from datetime import datetime
 from typing import List, NoReturn
 
 import requests
-from flask import Flask, abort, current_app
+from flask import Flask, current_app
 from flask import request as flask_request
 from lightspark import CurrencyUnit
 from lightspark import LightsparkSyncClient as LightsparkClient
@@ -39,6 +38,7 @@ from uma_vasp.sending_vasp_request_cache import (
     ISendingVaspRequestCache,
     SendingVaspInitialRequestData,
 )
+from uma_vasp.uma_exception import UmaException
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
 
@@ -614,13 +614,7 @@ class SendingVasp:
 
 def _abort_with_error(status_code: int, reason: str) -> NoReturn:
     print(f"Aborting with error {status_code}: {reason}")
-    abort(
-        status_code,
-        {
-            "status": "ERROR",
-            "reason": reason,
-        },
-    )
+    raise UmaException(reason, status_code)
 
 
 def register_routes(app: Flask, sending_vasp: SendingVasp):

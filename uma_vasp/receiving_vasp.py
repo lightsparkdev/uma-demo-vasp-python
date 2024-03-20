@@ -1,6 +1,6 @@
 import json
 
-from flask import Flask, abort, current_app
+from flask import Flask, current_app
 from flask import request as flask_request
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
@@ -10,13 +10,13 @@ from uma import (
     KycStatus,
     LnurlpRequest,
     LnurlpResponse,
-    PayRequest,
     PayReqResponse,
+    PayRequest,
     PubkeyResponse,
     compliance_from_payer_data,
     create_counterparty_data_options,
-    create_uma_lnurlp_response,
     create_pay_req_response,
+    create_uma_lnurlp_response,
     fetch_public_key_for_vasp,
     none_throws,
     parse_lnurlp_request,
@@ -35,6 +35,7 @@ from uma_vasp.currencies import (
     RECEIVER_FEES_MSATS,
 )
 from uma_vasp.lightspark_helpers import get_node
+from uma_vasp.uma_exception import UmaException
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
 
@@ -65,22 +66,16 @@ class ReceivingVasp:
             lnurlp_request = parse_lnurlp_request(flask_request.url)
         except Exception as e:
             print(f"Invalid UMA lnurlp request: {e}")
-            abort(
-                400,
-                {
-                    "status": "ERROR",
-                    "reason": f"Invalid UMA lnurlp request: {e}",
-                },
+            raise UmaException(
+                f"Invalid UMA lnurlp request: {e}",
+                status_code=400,
             )
 
         user = self.user_service.get_user_from_uma_user_name(username)
         if not user:
-            abort(
-                404,
-                {
-                    "status": "ERROR",
-                    "reason": f"Cannot find user {lnurlp_request.receiver_address}",
-                },
+            raise UmaException(
+                f"Cannot find user {lnurlp_request.receiver_address}",
+                status_code=404,
             )
 
         if not lnurlp_request.is_uma_request():
@@ -89,12 +84,9 @@ class ReceivingVasp:
         if not self.compliance_service.should_accept_transaction_from_vasp(
             none_throws(lnurlp_request.vasp_domain), lnurlp_request.receiver_address
         ):
-            abort(
-                403,
-                {
-                    "status": "ERROR",
-                    "reason": f"Cannot accept transactions from vasp {lnurlp_request.vasp_domain}",
-                },
+            raise UmaException(
+                f"Cannot accept transactions from vasp {lnurlp_request.vasp_domain}",
+                status_code=403,
             )
 
         sender_vasp_pubkey_response: PubkeyResponse
@@ -103,12 +95,9 @@ class ReceivingVasp:
                 none_throws(lnurlp_request.vasp_domain), self.vasp_pubkey_cache
             )
         except Exception as e:
-            abort(
-                424,
-                {
-                    "status": "ERROR",
-                    "reason": f"Cannot fetch public key for vasp {lnurlp_request.vasp_domain}: {e}",
-                },
+            raise UmaException(
+                f"Cannot fetch public key for vasp {lnurlp_request.vasp_domain}: {e}",
+                status_code=424,
             )
 
         # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
@@ -121,12 +110,9 @@ class ReceivingVasp:
                     nonce_cache=self.nonce_cache,
                 )
             except Exception as e:
-                abort(
-                    400,
-                    {
-                        "status": "ERROR",
-                        "reason": f"Invalid signature: {e}",
-                    },
+                raise UmaException(
+                    f"Invalid signature: {e}",
+                    status_code=400,
                 )
 
         metadata = self._create_metadata(user)
@@ -174,12 +160,9 @@ class ReceivingVasp:
     def handle_pay_request_callback(self, user_id: str):
         user = self.user_service.get_user_from_id(user_id)
         if not user:
-            abort(
-                404,
-                {
-                    "status": "ERROR",
-                    "reason": f"Cannot find user {user_id}",
-                },
+            raise UmaException(
+                f"Cannot find user {user_id}",
+                status_code=404,
             )
 
         request: PayRequest
@@ -192,12 +175,9 @@ class ReceivingVasp:
             request = parse_pay_request(request_data)
         except Exception as e:
             print(f"Invalid UMA pay request: {e}")
-            abort(
-                400,
-                {
-                    "status": "ERROR",
-                    "reason": f"Invalid UMA pay request: {e}",
-                },
+            raise UmaException(
+                f"Invalid UMA pay request: {e}",
+                status_code=400,
             )
         if not request.is_uma_request():
             return self._handle_non_uma_pay_request(request, user).to_dict()
@@ -207,12 +187,9 @@ class ReceivingVasp:
         if not self.compliance_service.should_accept_transaction_from_vasp(
             vasp_domain, user.get_uma_address(self.config)
         ):
-            abort(
-                403,
-                {
-                    "status": "ERROR",
-                    "reason": f"Cannot accept transactions from vasp {vasp_domain}",
-                },
+            raise UmaException(
+                f"Cannot accept transactions from vasp {vasp_domain}",
+                status_code=403,
             )
 
         # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
@@ -233,12 +210,9 @@ class ReceivingVasp:
         receiving_currency_code = none_throws(request.receiving_currency_code)
         msats_per_currency_unit = MSATS_PER_UNIT.get(receiving_currency_code, None)
         if msats_per_currency_unit is None:
-            abort(
-                400,
-                {
-                    "status": "ERROR",
-                    "reason": f"Currency code {receiving_currency_code} in the pay request is not supported. We support only {','.join(str(currency_code) for currency_code in MSATS_PER_UNIT.keys())}.",
-                },
+            raise UmaException(
+                f"Currency code {receiving_currency_code} in the pay request is not supported. We support only {','.join(str(currency_code) for currency_code in MSATS_PER_UNIT.keys())}.",
+                status_code=400,
             )
         receiver_fees_msats = RECEIVER_FEES_MSATS[receiving_currency_code]
 

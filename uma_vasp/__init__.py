@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from flask import Flask, request
+from flask import Flask, jsonify, request
 from lightspark import LightsparkSyncClient
 from uma import InMemoryPublicKeyCache, InMemoryNonceCache, create_pubkey_response
 
@@ -13,6 +13,7 @@ from uma_vasp.receiving_vasp import ReceivingVasp
 from uma_vasp.receiving_vasp import register_routes as register_receiving_vasp_routes
 from uma_vasp.sending_vasp import SendingVasp
 from uma_vasp.sending_vasp import register_routes as register_sending_vasp_routes
+from uma_vasp.uma_exception import UmaException
 
 
 def create_app(config=None, lightspark_client=None):
@@ -65,6 +66,10 @@ def create_app(config=None, lightspark_client=None):
         print(f"Received UTXO callback for {request.args.get('txid')}")
         print(request.json)
         return "OK"
+        
+    @app.errorhandler(UmaException)
+    def invalid_api_usage(e):
+        return jsonify(e.to_dict()), e.status_code
 
     register_receiving_vasp_routes(app, receiving_vasp)
     register_sending_vasp_routes(app, sending_vasp)
