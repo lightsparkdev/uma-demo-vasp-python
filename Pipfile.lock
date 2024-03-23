@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "da14c11a3c890c6c030bedc558cbd7891a086b623b5d310c51fc8c2a4413a2d5"
+            "sha256": "dfb005a584943c41f40b306c30e82eafb03be329996a1cb7612c3bb120592784"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -648,9 +648,9 @@
         },
         "uma-sdk": {
             "hashes": [
-                "sha256:2a290ac145b97e97f560ec353d9f42c7c18fb85b2a7844e7ae2a439480143888"
+                "sha256:c3a34587f2ea1734729b3991a898dd51a8fe3481beec892351ba905ea02c1e55"
             ],
-            "path": "./uma-sdk-1.0.0.zip",
+            "index": "pypi",
             "version": "==1.0.0"
         },
         "urllib3": {
