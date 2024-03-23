@@ -10,7 +10,7 @@ requests = "*"
 # NOTE: This file needs to exist in this directory for docker to build
 # to generate an updated version, run `pipenv run python setup.py sdist --format=zip`
 # in the `uma-python-sdk` directory, then copy the resulting zip file here.
-uma-sdk = {path = "./uma-sdk-1.0.0a1.zip"}
+uma-sdk = {path = "./uma-sdk-1.0.0.zip"}
 
 [dev-packages]
 black = "*"

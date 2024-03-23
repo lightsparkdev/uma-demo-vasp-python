@@ -7,7 +7,7 @@ ARG TARGETOS TARGETARCH
 WORKDIR /app
 
 # Copy Pipfile and Pipfile.lock
-COPY Pipfile Pipfile.lock uma-sdk-1.0.0a1.zip /app/
+COPY Pipfile Pipfile.lock uma-sdk-1.0.0.zip /app/
 
 # Install dependencies using pipenv
 RUN pip install --upgrade pip wheel setuptools && \

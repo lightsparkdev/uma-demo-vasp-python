@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "836a5d27c9c56f093215518bc4358d85b60304995c84acdb2982e7e775786170"
+            "sha256": "da14c11a3c890c6c030bedc558cbd7891a086b623b5d310c51fc8c2a4413a2d5"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -423,7 +423,7 @@
                 "sha256:1842e628fb1ffa929b94f89a9d33caafbeb9978dc96abb6036a12bc91f1c624b",
                 "sha256:22bf051ddfaa35ff827c30090de167e5c5b8cc6d343f7f35c9b1c7553f6ab64d"
             ],
-            "markers": "python_version < '4' and python_full_version >= '3.7.2'",
+            "markers": "python_full_version >= '3.7.2' and python_version < '4'",
             "version": "==3.5.2"
         },
         "eth-utils": {
@@ -648,10 +648,10 @@
         },
         "uma-sdk": {
             "hashes": [
-                "sha256:c963cd926e29b0a8c388a5d95d239857ba36455d05eae5899ccf71509f1d5f3f"
+                "sha256:2a290ac145b97e97f560ec353d9f42c7c18fb85b2a7844e7ae2a439480143888"
             ],
-            "path": "./uma-sdk-1.0.0a1.zip",
-            "version": "==1.0.0a1"
+            "path": "./uma-sdk-1.0.0.zip",
+            "version": "==1.0.0"
         },
         "urllib3": {
             "hashes": [
