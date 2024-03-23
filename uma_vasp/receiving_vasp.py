@@ -67,7 +67,6 @@ class ReceivingVasp:
             lnurlp_request = parse_lnurlp_request(flask_request.url)
         except UnsupportedVersionException as e:
             raise e
-
         except Exception as e:
             print(f"Invalid UMA lnurlp request: {e}")
             raise UmaException(

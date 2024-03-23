@@ -41,6 +41,7 @@ def create_app(config=None, lightspark_client=None):
             http_host=host,
         )
     compliance_service = DemoComplianceService(lightspark_client, config)
+    nonce_cache = InMemoryNonceCache(datetime.now(timezone.utc))
 
     receiving_vasp = ReceivingVasp(
         user_service=user_service,
