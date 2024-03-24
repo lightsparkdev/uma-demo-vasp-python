@@ -7,7 +7,7 @@ ARG TARGETOS TARGETARCH
 WORKDIR /app
 
 # Copy Pipfile and Pipfile.lock
-COPY Pipfile Pipfile.lock /app/
+COPY Pipfile Pipfile.lock uma-sdk-1.0.0.zip /app/
 
 # Install dependencies using pipenv
 RUN pip install --upgrade pip wheel setuptools && \
@@ -23,6 +23,8 @@ EXPOSE 9000
 
 ENV FLASK_APP=uma_vasp
 ENV FLASK_RUN_PORT=9000
+# log everything to stdout:
+ENV PYTHONUNBUFFERED True
 
 # Start the Flask app
 CMD ["flask", "run", "--host", "0.0.0.0"]

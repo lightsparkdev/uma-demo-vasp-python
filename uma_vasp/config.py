@@ -3,6 +3,7 @@ from typing import Optional
 
 from flask import request
 from lightspark import ComplianceProvider
+from uma import is_domain_local
 
 
 class Config:
@@ -13,8 +14,10 @@ class Config:
         api_token_client_id = require_env("LIGHTSPARK_API_TOKEN_CLIENT_ID")
         api_token_client_secret = require_env("LIGHTSPARK_API_TOKEN_CLIENT_SECRET")
         node_id = require_env("LIGHTSPARK_UMA_NODE_ID")
+        encryption_cert_chain = require_env("LIGHTSPARK_UMA_ENCRYPTION_CERT_CHAIN")
         encryption_pubkey_hex = require_env("LIGHTSPARK_UMA_ENCRYPTION_PUBKEY")
         encryption_privkey_hex = require_env("LIGHTSPARK_UMA_ENCRYPTION_PRIVKEY")
+        signing_cert_chain = require_env("LIGHTSPARK_UMA_SIGNING_CERT_CHAIN")
         signing_pubkey_hex = require_env("LIGHTSPARK_UMA_SIGNING_PUBKEY")
         signing_privkey_hex = require_env("LIGHTSPARK_UMA_SIGNING_PRIVKEY")
         base_url = os.environ.get("LIGHTSPARK_EXAMPLE_BASE_URL")
@@ -36,8 +39,10 @@ class Config:
             api_token_client_id,
             api_token_client_secret,
             node_id,
+            encryption_cert_chain,
             encryption_pubkey_hex,
             encryption_privkey_hex,
+            signing_cert_chain,
             signing_pubkey_hex,
             signing_privkey_hex,
             base_url,
@@ -51,8 +56,10 @@ class Config:
         api_token_client_id: str,
         api_token_client_secret: str,
         node_id: str,
+        encryption_cert_chain: str,
         encryption_pubkey_hex: str,
         encryption_privkey_hex: str,
+        signing_cert_chain: str,
         signing_pubkey_hex: str,
         signing_privkey_hex: str,
         base_url: Optional[str] = None,
@@ -63,8 +70,10 @@ class Config:
         self.api_token_client_id = api_token_client_id
         self.api_token_client_secret = api_token_client_secret
         self.node_id = node_id
+        self.encryption_cert_chain = encryption_cert_chain
         self.encryption_pubkey_hex = encryption_pubkey_hex
         self.encryption_privkey_hex = encryption_privkey_hex
+        self.signing_cert_chain = signing_cert_chain
         self.signing_pubkey_hex = signing_pubkey_hex
         self.signing_privkey_hex = signing_privkey_hex
         self.base_url = base_url
@@ -72,14 +81,8 @@ class Config:
         self.remote_signing_node_master_seed = remote_signing_node_master_seed
         self.compliance_provider = compliance_provider
 
-    def get_encryption_pubkey(self):
-        return bytes.fromhex(self.encryption_pubkey_hex)
-
     def get_encryption_privkey(self):
         return bytes.fromhex(self.encryption_privkey_hex)
-
-    def get_signing_pubkey(self):
-        return bytes.fromhex(self.signing_pubkey_hex)
 
     def get_signing_privkey(self):
         return bytes.fromhex(self.signing_privkey_hex)
@@ -100,7 +103,9 @@ class Config:
         return parts[-2]
 
     def get_complete_url(self, path: str) -> str:
-        return f"http://{self.get_uma_domain()}{path}"
+        domain = self.get_uma_domain()
+        protocol = "http" if is_domain_local(domain) else "https"
+        return f"{protocol}://{self.get_uma_domain()}{path}"
 
 
 def require_env(env_var_name):

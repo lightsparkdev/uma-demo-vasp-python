@@ -1,9 +1,13 @@
 from datetime import datetime, timezone
 import json
-
 from flask import Flask, jsonify, request
 from lightspark import LightsparkSyncClient
-from uma import InMemoryNonceCache, InMemoryPublicKeyCache, UnsupportedVersionException
+from uma import (
+    InMemoryPublicKeyCache,
+    InMemoryNonceCache,
+    UnsupportedVersionException,
+    create_pubkey_response,
+)
 
 from uma_vasp.config import Config
 from uma_vasp.demo.demo_compliance_service import DemoComplianceService
@@ -15,24 +19,27 @@ from uma_vasp.receiving_vasp import ReceivingVasp
 from uma_vasp.receiving_vasp import register_routes as register_receiving_vasp_routes
 from uma_vasp.sending_vasp import SendingVasp
 from uma_vasp.sending_vasp import register_routes as register_sending_vasp_routes
+from uma_vasp.uma_exception import UmaException
 
 
-def create_app(config=None):
+def create_app(config=None, lightspark_client=None):
     app = Flask(__name__)
     user_service = DemoUserService()
     if config is None:
         config = Config.from_env()
     pubkey_cache = InMemoryPublicKeyCache()
+    nonce_cache = InMemoryNonceCache(datetime.now(timezone.utc))
 
     host = None
     if config.base_url:
         host = config.base_url.split("://")[1].split("/")[0]
-    lightspark_client = LightsparkSyncClient(
-        api_token_client_id=config.api_token_client_id,
-        api_token_client_secret=config.api_token_client_secret,
-        base_url=config.base_url,
-        http_host=host,
-    )
+    if lightspark_client is None:
+        lightspark_client = LightsparkSyncClient(
+            api_token_client_id=config.api_token_client_id,
+            api_token_client_secret=config.api_token_client_secret,
+            base_url=config.base_url,
+            http_host=host,
+        )
     compliance_service = DemoComplianceService(lightspark_client, config)
     nonce_cache = InMemoryNonceCache(datetime.now(timezone.utc))
 
@@ -57,16 +64,19 @@ def create_app(config=None):
 
     @app.route("/.well-known/lnurlpubkey")
     def handle_public_key_request():
-        return {
-            "signingPubKey": config.signing_pubkey_hex,
-            "encryptionPubKey": config.encryption_pubkey_hex,
-        }
+        return create_pubkey_response(
+            config.signing_cert_chain, config.encryption_cert_chain
+        ).to_dict()
 
     @app.route("/api/uma/utxoCallback", methods=["POST"])
     def handle_utxo_callback():
         print(f"Received UTXO callback for {request.args.get('txid')}")
         print(request.json)
         return "OK"
+
+    @app.errorhandler(UmaException)
+    def invalid_api_usage(e):
+        return jsonify(e.to_dict()), e.status_code
 
     @app.errorhandler(UnsupportedVersionException)
     def unsupported_version(e):

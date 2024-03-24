@@ -478,10 +478,10 @@
         },
         "lightspark": {
             "hashes": [
-                "sha256:8692e77c15c5c29fa9d8bd399abec7846f5e6b3e4472c686a7577fa58a965967"
+                "sha256:2f0c84a0dee31c1f4b55c5eb68f086e54559864af9368999899c641284d44ca0"
             ],
             "index": "pypi",
-            "version": "==2.5.1"
+            "version": "==2.6.0"
         },
         "lightspark-crypto-python": {
             "hashes": [
@@ -658,10 +658,10 @@
         },
         "uma-sdk": {
             "hashes": [
-                "sha256:a6f76d357cd6427349bfc91f4b2a7293eeec27aabcec52ec6e64fcd13f87faa3"
+                "sha256:c3a34587f2ea1734729b3991a898dd51a8fe3481beec892351ba905ea02c1e55"
             ],
             "index": "pypi",
-            "version": "==0.6.1"
+            "version": "==1.0.0"
         },
         "urllib3": {
             "hashes": [

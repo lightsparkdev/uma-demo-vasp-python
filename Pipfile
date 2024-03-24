@@ -4,17 +4,16 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-uma-sdk = "*"
 lightspark = "*"
 flask = "*"
 requests = "*"
+uma-sdk = "*"
 
 [dev-packages]
 black = "*"
 isort = "*"
 pyre-check = "*"
-pytest = "*"
+pytest = "~=7.4.4"
 pylint = "*"
-
-[requires]
-python_version = "3.11"
+# Need to lock this version to avoid breaking older python versions:
+libcst = "==1.1.0"
