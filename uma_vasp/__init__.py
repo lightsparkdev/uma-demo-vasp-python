@@ -1,12 +1,17 @@
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
+
 from flask import Flask, jsonify, request
 from lightspark import LightsparkSyncClient
 from uma import (
-    InMemoryPublicKeyCache,
     InMemoryNonceCache,
+    InMemoryPublicKeyCache,
+    InvalidSignatureException,
+    PostTransactionCallback,
     UnsupportedVersionException,
     create_pubkey_response,
+    fetch_public_key_for_vasp,
+    verify_post_transaction_callback_signature,
 )
 
 from uma_vasp.config import Config
@@ -70,8 +75,30 @@ def create_app(config=None, lightspark_client=None):
 
     @app.route("/api/uma/utxoCallback", methods=["POST"])
     def handle_utxo_callback():
-        print(f"Received UTXO callback for {request.args.get('txid')}")
-        print(request.json)
+        print(f"Received UTXO callback for {request.args.get('txid')}:")
+        try:
+            tx_callback = PostTransactionCallback.from_json(json.dumps(request.json))
+        except Exception as e:
+            raise UmaException(
+                status_code=400, message=f"Error parsing UTXO callback: {e}"
+            )
+
+        print(tx_callback.to_json())
+
+        if tx_callback.vasp_domain:
+            other_vasp_pubkeys = fetch_public_key_for_vasp(
+                vasp_domain=tx_callback.vasp_domain,
+                cache=pubkey_cache,
+            )
+            try:
+                verify_post_transaction_callback_signature(
+                    tx_callback, other_vasp_pubkeys, nonce_cache
+                )
+            except InvalidSignatureException as e:
+                raise UmaException(
+                    f"Error verifying post-tx callback signature: {e}", 424
+                )
+
         return "OK"
 
     @app.errorhandler(UmaException)

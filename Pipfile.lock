@@ -658,10 +658,10 @@
         },
         "uma-sdk": {
             "hashes": [
-                "sha256:c3a34587f2ea1734729b3991a898dd51a8fe3481beec892351ba905ea02c1e55"
+                "sha256:5dd069f0a63f2da3644d9058807c7455cbcdf1d451f55f7f55893757a46b5e53"
             ],
             "index": "pypi",
-            "version": "==1.0.0"
+            "version": "==1.0.1"
         },
         "urllib3": {
             "hashes": [
