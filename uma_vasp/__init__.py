@@ -96,7 +96,7 @@ def create_app(config=None, lightspark_client=None):
                 )
             except InvalidSignatureException as e:
                 raise UmaException(
-                    f"Error verifying LNURLP response signature: {e}", 424
+                    f"Error verifying post-tx callback signature: {e}", 424
                 )
 
         return "OK"
