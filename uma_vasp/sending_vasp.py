@@ -19,6 +19,7 @@ from uma import (
     create_compliance_payer_data,
     create_counterparty_data_options,
     create_pay_request,
+    create_post_transaction_callback,
     create_uma_lnurlp_request_url,
     fetch_public_key_for_vasp,
     none_throws,
@@ -559,9 +560,13 @@ class SendingVasp:
                 )
             )
 
+        post_tx_callback = create_post_transaction_callback(
+            utxos, self.config.get_uma_domain(), self.config.get_signing_privkey()
+        )
+
         res = requests.post(
             utxo_callback,
-            json={"utxos": utxos},
+            json=post_tx_callback.to_dict(),
             timeout=10,
         )
         if res.status_code != 200:
