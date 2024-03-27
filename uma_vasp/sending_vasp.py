@@ -122,9 +122,7 @@ class SendingVasp:
                 )
 
         callback_uuid = self.request_cache.save_lnurlp_response_data(
-            lnurlp_response=lnurlp_response,
-            receiver_uma=receiver_uma,
-            receiving_vasp_domain=self.config.get_uma_domain(),
+            lnurlp_response=lnurlp_response, receiver_uma=receiver_uma
         )
         sender_currencies = [
             CURRENCIES[currency]
@@ -155,9 +153,7 @@ class SendingVasp:
     ):
         user = self._get_calling_user_or_abort()
         callback_uuid = self.request_cache.save_lnurlp_response_data(
-            lnurlp_response=lnurlp_response,
-            receiver_uma=receiver_uma,
-            receiving_vasp_domain=self.config.get_uma_domain(),
+            lnurlp_response=lnurlp_response, receiver_uma=receiver_uma
         )
         sender_currencies = [
             CURRENCIES[currency]
@@ -239,8 +235,11 @@ class SendingVasp:
                 is_amount_in_msats,
             )
 
+        receiving_domain = get_domain_from_uma_address(
+            initial_request_data.receiver_uma
+        )
         receiver_vasp_pubkey = fetch_public_key_for_vasp(
-            vasp_domain=initial_request_data.receiving_vasp_domain,
+            vasp_domain=receiving_domain,
             cache=self.vasp_pubkey_cache,
         )
 
@@ -313,6 +312,7 @@ class SendingVasp:
         if not compliance:
             _abort_with_error(424, "No compliance data in pay request response.")
 
+        print(f"payreq_response: {payreq_response.to_dict()}")
         if uma_version == 1:
             try:
                 verify_pay_req_response_signature(

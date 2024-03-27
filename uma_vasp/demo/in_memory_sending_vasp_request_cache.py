@@ -25,16 +25,12 @@ class InMemorySendingVaspRequestCache(ISendingVaspRequestCache):
         return self.payreq_data.get(uuid)
 
     def save_lnurlp_response_data(
-        self,
-        lnurlp_response: LnurlpResponse,
-        receiver_uma: str,
-        receiving_vasp_domain: str,
+        self, lnurlp_response: LnurlpResponse, receiver_uma: str
     ) -> str:
         uuid = str(uuid4())
         self.lnurlp_response_data[uuid] = SendingVaspInitialRequestData(
             lnurlp_response=lnurlp_response,
             receiver_uma=receiver_uma,
-            receiving_vasp_domain=receiving_vasp_domain,
         )
         return uuid
 

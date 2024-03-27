@@ -12,7 +12,6 @@ class SendingVaspInitialRequestData:
 
     lnurlp_response: LnurlpResponse
     receiver_uma: str
-    receiving_vasp_domain: str
 
 
 @dataclass
@@ -48,7 +47,6 @@ class ISendingVaspRequestCache(ABC):
         self,
         lnurlp_response: LnurlpResponse,
         receiver_uma: str,
-        receiving_vasp_domain: str,
     ) -> str:
         pass
 
