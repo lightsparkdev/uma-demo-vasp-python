@@ -6,6 +6,7 @@ import requests
 from flask import Flask, current_app
 from flask import request as flask_request
 from lightspark import CurrencyUnit
+from lightspark.utils.currency_amount import amount_as_msats
 from lightspark import LightsparkSyncClient as LightsparkClient
 from lightspark import OutgoingPayment, PaymentDirection, TransactionStatus
 from uma import (
@@ -361,7 +362,7 @@ class SendingVasp:
             "senderCurrencies": [currency.to_dict() for currency in sender_currencies],
             "callbackUuid": new_callback_uuid,
             "encodedInvoice": payreq_response.encoded_invoice,
-            "amountMsats": invoice_data.amount.original_value,
+            "amountMsats": amount_as_msats(invoice_data.amount),
             "conversionRate": payment_info.multiplier,
             "exchangeFeesMsats": payment_info.exchange_fees_msats,
             "currencyCode": payment_info.currency_code,
