@@ -365,7 +365,8 @@ class SendingVasp:
             "amountMsats": amount_as_msats(invoice_data.amount),
             "conversionRate": payment_info.multiplier,
             "exchangeFeesMsats": payment_info.exchange_fees_msats,
-            "currencyCode": payment_info.currency_code,
+            "receivingCurrencyCode": payment_info.currency_code,
+            "amountReceivingCurrency": payment_info.amount,
         }
 
     def _handle_as_non_uma_payreq(
