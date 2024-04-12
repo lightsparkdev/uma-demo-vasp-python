@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask import Flask, jsonify, request
 from lightspark import LightsparkSyncClient
@@ -33,7 +33,8 @@ def create_app(config=None, lightspark_client=None):
     if config is None:
         config = Config.from_env()
     pubkey_cache = InMemoryPublicKeyCache()
-    nonce_cache = InMemoryNonceCache(datetime.now(timezone.utc))
+    two_weeks_ago = datetime.now(timezone.utc) - timedelta(weeks=2)
+    nonce_cache = InMemoryNonceCache(two_weeks_ago)
 
     host = None
     if config.base_url:
@@ -46,7 +47,6 @@ def create_app(config=None, lightspark_client=None):
             http_host=host,
         )
     compliance_service = DemoComplianceService(lightspark_client, config)
-    nonce_cache = InMemoryNonceCache(datetime.now(timezone.utc))
 
     receiving_vasp = ReceivingVasp(
         user_service=user_service,
