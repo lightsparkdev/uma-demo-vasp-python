@@ -28,15 +28,20 @@ Next, we need to set up the config variables. You can do this by creating a file
 directory of this repo. This file should contain the following:
 
 ```bash
-LIGHTSPARK_API_TOKEN_CLIENT_ID=<your lightspark API token client ID from https://app.lightspark.com/api-config>
-LIGHTSPARK_API_TOKEN_CLIENT_SECRET=<your lightspark API token client secret from https://app.lightspark.com/api-config>
+# These can be found at https://app.lightspark.com/api-config
+LIGHTSPARK_API_TOKEN_CLIENT_ID=<your lightspark API token client ID from>
+LIGHTSPARK_API_TOKEN_CLIENT_SECRET=<your lightspark API token client secret>
 LIGHTSPARK_UMA_NODE_ID=<your lightspark node ID. ex: LightsparkNodeWithOSKLND:018b24d0-1c45-f96b-0000-1ed0328b72cc>
-LIGHTSPARK_UMA_RECEIVER_USER=<receiver UMA>
-LIGHTSPARK_UMA_RECEIVER_USER_PASSWORD=<Auth password on the sender side>
+
+# These can be generated as described at https://docs.uma.me/uma-standard/keys-authentication-encryption
 LIGHTSPARK_UMA_ENCRYPTION_PUBKEY=<hex-encoded encryption pubkey>
 LIGHTSPARK_UMA_ENCRYPTION_PRIVKEY=<hex-encoded encryption privkey>
 LIGHTSPARK_UMA_SIGNING_PUBKEY=<hex-encoded signing pubkey>
 LIGHTSPARK_UMA_SIGNING_PRIVKEY=<hex-encoded signing privkey>
+
+# These credentials are used for Basic Auth for both the sender and receiver.
+LIGHTSPARK_UMA_RECEIVER_USER=<sender UMA>
+LIGHTSPARK_UMA_RECEIVER_USER_PASSWORD=<Auth password on the sender side>
 
 # If you are using an OSK node:
 LIGHTSPARK_UMA_OSK_NODE_SIGNING_KEY_PASSWORD=<password for the signing key>
@@ -58,19 +63,19 @@ This will run the server on port 5000. You can change the port by changing the f
 
 ## Sending a request
 
-Once the server is running, you can send a request to it using curl. Assuming your server is running on port 5000 with another
-VASP running on port 8081, you can run the following:
+Once the server is running, you can send a request to it using curl. Assuming your server is running on port 9000 with another
+VASP running on port 8081, you can run the following to have Alice (`$alice@localhost:9000`) pay Bob (`$bob@localhost:8081`).
 
 ```bash
 # First, call to vasp1 to lookup Bob at vasp2. This will return currency conversion info, etc. It will also contain a 
 # callback ID that you'll need for the next call
-$ curl -X GET http://localhost:9000/api/umalookup/\$bob@localhost:8081 -u bob:pa55word
+$ curl -X GET http://localhost:9000/api/umalookup/\$bob@localhost:8081 -u alice:pa55word
 
 # Now, call to vasp1 to get a payment request from vasp2. Replace the last path component here with the callbackUuid
 # from the previous call. This will return an invoice and another callback ID that you'll need for the next call.
-$ curl -X GET "http://localhost:9000/api/umapayreq/52ca86cd-62ed-4110-9774-4e07b9aa1f0e?amount=100&currencyCode=USD" -u bob:pa55word
+$ curl -X GET "http://localhost:9000/api/umapayreq/52ca86cd-62ed-4110-9774-4e07b9aa1f0e?amount=100&currencyCode=USD" -u alice:pa55word
 
 # Now, call to vasp1 to send the payment. Replace the last path component here with the callbackUuid from the payreq
 # call. This will return a payment ID that you can use to check the status of the payment.
-curl -X POST http://localhost:9000/api/sendpayment/e26cbee9-f09d-4ada-a731-965cbd043d50 -u bob:pa55word
+curl -X POST http://localhost:9000/api/sendpayment/e26cbee9-f09d-4ada-a731-965cbd043d50 -u alice:pa55word
 ```
