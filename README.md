@@ -34,8 +34,10 @@ LIGHTSPARK_API_TOKEN_CLIENT_SECRET=<your lightspark API token client secret>
 LIGHTSPARK_UMA_NODE_ID=<your lightspark node ID. ex: LightsparkNodeWithOSKLND:018b24d0-1c45-f96b-0000-1ed0328b72cc>
 
 # These can be generated as described at https://docs.uma.me/uma-standard/keys-authentication-encryption
+LIGHTSPARK_UMA_ENCRYPTION_CERT_CHAIN=<PEM-encoded cert chain ordered from leaf to root>
 LIGHTSPARK_UMA_ENCRYPTION_PUBKEY=<hex-encoded encryption pubkey>
 LIGHTSPARK_UMA_ENCRYPTION_PRIVKEY=<hex-encoded encryption privkey>
+LIGHTSPARK_UMA_SIGNING_CERT_CHAIN=<PEM-encoded cert chain ordered from leaf to root>
 LIGHTSPARK_UMA_SIGNING_PUBKEY=<hex-encoded signing pubkey>
 LIGHTSPARK_UMA_SIGNING_PRIVKEY=<hex-encoded signing privkey>
 
