@@ -1,6 +1,9 @@
+import json
 import time
+from builtins import len
 from datetime import datetime
 from typing import List, NoReturn
+from urllib.parse import urljoin
 
 import requests
 from flask import Flask, current_app
@@ -23,6 +26,7 @@ from uma import (
     create_post_transaction_callback,
     create_uma_lnurlp_request_url,
     fetch_public_key_for_vasp,
+    is_domain_local,
     none_throws,
     parse_lnurlp_response,
     parse_pay_req_response,
@@ -76,11 +80,15 @@ class SendingVasp:
                 403, "Transactions to that receiving VASP are not allowed."
             )
 
-        url = create_uma_lnurlp_request_url(
-            signing_private_key=self.config.get_signing_privkey(),
-            receiver_address=receiver_uma,
-            sender_vasp_domain=self.config.get_uma_domain(),
-            is_subject_to_travel_rule=True,
+        url = (
+            create_uma_lnurlp_request_url(
+                signing_private_key=self.config.get_signing_privkey(),
+                receiver_address=receiver_uma,
+                sender_vasp_domain=self.config.get_uma_domain(),
+                is_subject_to_travel_rule=True,
+            )
+            if receiver_uma.startswith("$")
+            else self._create_non_uma_lnurlp_request_url(receiver_uma)
         )
 
         response = requests.get(url, timeout=20)
@@ -148,6 +156,14 @@ class SendingVasp:
                 else None
             ),
         }
+
+    def _create_non_uma_lnurlp_request_url(self, receiver_address: str) -> str:
+        receiver_address_parts = receiver_address.split("@")
+        if len(receiver_address_parts) != 2:
+            _abort_with_error(400, "Invalid non-UMA receiver address.")
+        scheme = "http" if is_domain_local(receiver_address_parts[1]) else "https"
+        url_path = f"/.well-known/lnurlp/{receiver_address_parts[0]}"
+        return urljoin(f"{scheme}://{receiver_address_parts[1]}", url_path)
 
     def _handle_as_non_uma_lnurl_response(
         self, lnurlp_response: LnurlpResponse, receiver_uma: str
@@ -387,7 +403,7 @@ class SendingVasp:
             receiving_currency_code=receiving_currency_code,
             is_amount_in_receiving_currency=not is_amount_in_msats,
             amount=amount,
-            payer_identifier=user.get_uma_address(self.config),
+            payer_identifier=user.get_non_uma_lnurl_address(self.config),
             payer_name=None,
             payer_email=None,
             payer_compliance=None,
@@ -395,9 +411,16 @@ class SendingVasp:
             uma_major_version=1,  # Use the new LUD-21 fields.
         )
 
+        params = {}
+        params["amount"] = payreq.amount
+        if payreq.receiving_currency_code:
+            params["convert"] = payreq.receiving_currency_code
+        if payreq.payer_data:
+            params["payerData"] = json.dumps(payreq.payer_data)
+
         res = requests.get(
             initial_request_data.lnurlp_response.callback,
-            params=payreq.to_dict(),
+            params=params,
             timeout=20,
         )
 
