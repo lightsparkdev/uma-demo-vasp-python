@@ -189,7 +189,6 @@ class ReceivingVasp:
                 status_code=400,
             )
         if not request.is_uma_request():
-            print(f"Handling non-UMA pay request {request_data}")
             return self._handle_non_uma_pay_request(request, user).to_dict()
 
         payer_data = none_throws(request.payer_data)

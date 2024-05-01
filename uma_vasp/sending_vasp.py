@@ -80,7 +80,6 @@ class SendingVasp:
                 403, "Transactions to that receiving VASP are not allowed."
             )
 
-
         url = create_uma_lnurlp_request_url(
             signing_private_key=self.config.get_signing_privkey(),
             receiver_address=receiver_uma,
