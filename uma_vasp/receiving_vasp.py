@@ -170,11 +170,17 @@ class ReceivingVasp:
 
         request: PayRequest
         try:
-            request_data = (
-                flask_request.get_data(as_text=True)
-                if flask_request.method == "POST"
-                else json.dumps(flask_request.args)
-            )
+            if flask_request.method == "POST":
+                request_data = flask_request.get_data(as_text=True)
+            else:
+                payreq = {}
+                if "amount" in flask_request.args:
+                    payreq["amount"] = flask_request.args["amount"]
+                if "convert" in flask_request.args:
+                    payreq["receiving_currency_code"] = flask_request.args["convert"]
+                if "payerData" in flask_request.args:
+                    payreq["payer_data"] = json.loads(flask_request.args["payerData"])
+                request_data = json.dumps(payreq)
             request = parse_pay_request(request_data)
         except Exception as e:
             print(f"Invalid UMA pay request: {e}")
@@ -183,6 +189,7 @@ class ReceivingVasp:
                 status_code=400,
             )
         if not request.is_uma_request():
+            print(f"Handling non-UMA pay request {request_data}")
             return self._handle_non_uma_pay_request(request, user).to_dict()
 
         payer_data = none_throws(request.payer_data)

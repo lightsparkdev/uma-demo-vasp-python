@@ -16,3 +16,6 @@ class User:
 
     def get_uma_address(self, config: Config) -> str:
         return f"${self.uma_user_name}@{config.get_uma_domain()}"
+
+    def get_non_uma_lnurl_address(self, config: Config) -> str:
+        return f"{self.uma_user_name}@{config.get_uma_domain()}"
