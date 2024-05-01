@@ -80,12 +80,16 @@ class SendingVasp:
                 403, "Transactions to that receiving VASP are not allowed."
             )
 
-        url = create_uma_lnurlp_request_url(
-            signing_private_key=self.config.get_signing_privkey(),
-            receiver_address=receiver_uma,
-            sender_vasp_domain=self.config.get_uma_domain(),
-            is_subject_to_travel_rule=True,
-        ) if receiver_uma.startswith("$") else self._create_non_uma_lnurlp_request_url(receiver_uma)
+        url = (
+            create_uma_lnurlp_request_url(
+                signing_private_key=self.config.get_signing_privkey(),
+                receiver_address=receiver_uma,
+                sender_vasp_domain=self.config.get_uma_domain(),
+                is_subject_to_travel_rule=True,
+            )
+            if receiver_uma.startswith("$")
+            else self._create_non_uma_lnurlp_request_url(receiver_uma)
+        )
 
         response = requests.get(url, timeout=20)
 
@@ -153,9 +157,7 @@ class SendingVasp:
             ),
         }
 
-    def _create_non_uma_lnurlp_request_url(
-        self, receiver_address: str
-    ) -> str:
+    def _create_non_uma_lnurlp_request_url(self, receiver_address: str) -> str:
         receiver_address_parts = receiver_address.split("@")
         if len(receiver_address_parts) != 2:
             _abort_with_error(400, "Invalid non-UMA receiver address.")
@@ -414,7 +416,7 @@ class SendingVasp:
         if payreq.receiving_currency_code:
             params["convert"] = payreq.receiving_currency_code
         if payreq.payer_data:
-            params['payerData'] = json.dumps(payreq.payer_data)
+            params["payerData"] = json.dumps(payreq.payer_data)
 
         res = requests.get(
             initial_request_data.lnurlp_response.callback,
