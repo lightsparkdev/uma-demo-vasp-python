@@ -8,7 +8,6 @@ lightspark = "*"
 flask = "*"
 requests = "*"
 uma-sdk = "*"
-exceptiongroup = "*"
 
 [dev-packages]
 black = "*"
