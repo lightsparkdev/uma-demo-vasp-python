@@ -411,16 +411,9 @@ class SendingVasp:
             uma_major_version=1,  # Use the new LUD-21 fields.
         )
 
-        params = {}
-        params["amount"] = payreq.amount
-        if payreq.receiving_currency_code:
-            params["convert"] = payreq.receiving_currency_code
-        if payreq.payer_data:
-            params["payerData"] = json.dumps(payreq.payer_data)
-
         res = requests.get(
             initial_request_data.lnurlp_response.callback,
-            params=params,
+            params=payreq.to_request_params(),
             timeout=20,
         )
 
