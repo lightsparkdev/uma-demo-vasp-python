@@ -420,7 +420,7 @@ class SendingVasp:
 
         res = requests.get(
             initial_request_data.lnurlp_response.callback,
-            params=params,
+            params=payreq.to_request_params(),
             timeout=20,
         )
 
