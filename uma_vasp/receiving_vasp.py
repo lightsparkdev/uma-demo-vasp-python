@@ -61,7 +61,9 @@ class ReceivingVasp:
         self.nonce_cache = nonce_cache
 
     def handle_lnurlp_request(self, username: str):
-        print(f"Handling LNURLP query for user {username}. Request URL: {flask_request.url}")
+        print(
+            f"Handling LNURLP query for user {username}. Request URL: {flask_request.url}"
+        )
         lnurlp_request: LnurlpRequest
         try:
             lnurlp_request = parse_lnurlp_request(flask_request.url)
@@ -315,7 +317,7 @@ class LightsparkInvoiceCreator(IUmaInvoiceCreator):
             node_id=self.config.node_id,
             amount_msats=amount_msats,
             metadata=metadata,
-            expiry_secs=600, # expiry of 10 minutes. Will likely be shorter in real-world scenarios.
+            expiry_secs=600,  # expiry of 10 minutes. Will likely be shorter in real-world scenarios.
         ).data.encoded_payment_request
 
 
