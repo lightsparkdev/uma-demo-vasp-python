@@ -90,6 +90,7 @@ class SendingVasp:
             if receiver_uma.startswith("$")
             else self._create_non_uma_lnurlp_request_url(receiver_uma)
         )
+        print(f"Fetching LNURLP as {url}", flush=True)
 
         response = requests.get(url, timeout=20)
 
@@ -110,7 +111,7 @@ class SendingVasp:
             _abort_with_error(424, f"Error parsing LNURLP response: {e}")
 
         if not lnurlp_response.is_uma_response():
-            print("Handling as regular LNURLP response.")
+            print("Handling as regular LNURLP response:" + response.text, flush=True)
             return self._handle_as_non_uma_lnurl_response(lnurlp_response, receiver_uma)
 
         receiver_vasp_pubkey = fetch_public_key_for_vasp(
@@ -303,7 +304,7 @@ class SendingVasp:
             requested_payee_data=requested_payee_data,
             uma_major_version=uma_version if uma_version is not None else 1,
         )
-        print(f"Payreq: {payreq.to_dict()}")
+        print(f"Payreq: {payreq.to_dict()}", flush=True)
 
         res = requests.post(
             initial_request_data.lnurlp_response.callback,
@@ -525,12 +526,16 @@ class SendingVasp:
         except ValueError:
             _abort_with_error(400, "Amount must be an integer.")
 
+        # add SATS for sender-locked if not present:
+        currencies = lnurlp_response.currencies or []
+        if not any(currency.code == "SAT" for currency in currencies):
+            sat_currency = CURRENCIES["SAT"]
+            sat_currency.min_sendable = lnurlp_response.min_sendable
+            sat_currency.max_sendable = lnurlp_response.max_sendable
+            currencies.append(sat_currency)
+
         target_currency = next(
-            (
-                currency
-                for currency in lnurlp_response.currencies or [CURRENCIES["SAT"]]
-                if currency.code == currency_code
-            ),
+            (currency for currency in currencies if currency.code == currency_code),
             None,
         )
         if not target_currency:

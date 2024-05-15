@@ -9,12 +9,12 @@ SAT = "SAT"
 
 # NOTE: In a real app, these values would be fetched from quote API.
 MSATS_PER_UNIT = {
-    USD: 22883.56,
+    USD: 15429.7,
     SAT: 1_000.0,
-    BRL: 4608.84776960979,
-    MXN: 1325.80831017669,
-    PHP: 405.404106597774,
-    CAD: 16836.0372009,
+    BRL: 3007.45,
+    MXN: 926.11,
+    PHP: 268.72,
+    CAD: 11341.22,
 }
 
 RECEIVER_FEES_MSATS = {
