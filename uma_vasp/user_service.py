@@ -18,3 +18,7 @@ class IUserService(ABC):
         self, request_url: str, request_headers: dict
     ) -> Optional[User]:
         pass
+
+    @abstractmethod
+    def validate_login(self, username: str, password: str) -> bool:
+        pass

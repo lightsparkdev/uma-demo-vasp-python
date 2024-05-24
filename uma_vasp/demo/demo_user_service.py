@@ -2,6 +2,7 @@ import os
 from base64 import b64decode
 from typing import Optional
 
+from flask import Response
 from uma import KycStatus
 
 from uma_vasp.user import User
@@ -72,3 +73,10 @@ class DemoUserService(IUserService):
             return None
 
         return user
+    
+    def validate_login(self, username: str, password: str) -> bool:
+        user = self.get_user_from_uma_user_name(username)
+        if not user:
+            return False
+        return password == os.environ.get("LIGHTSPARK_UMA_RECEIVER_USER_PASSWORD")
+        

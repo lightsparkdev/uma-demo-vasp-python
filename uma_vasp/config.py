@@ -27,6 +27,7 @@ class Config:
         remote_signing_node_master_seed = os.environ.get(
             "LIGHTSPARK_UMA_REMOTE_SIGNING_NODE_MASTER_SEED"
         )
+        secret_key = os.environ.get("COOKIE_SECRET")
         compliance_provider = None
         try:
             compliance_env = os.environ.get("LIGHTSPARK_UMA_COMPLIANCE_PROVIDER")
@@ -49,6 +50,7 @@ class Config:
             osk_node_signing_key_password,
             remote_signing_node_master_seed,
             compliance_provider,
+            secret_key=secret_key,
         )
 
     def __init__(
@@ -66,6 +68,7 @@ class Config:
         osk_node_signing_key_password: Optional[str] = None,
         remote_signing_node_master_seed: Optional[str] = None,
         compliance_provider: Optional[ComplianceProvider] = None,
+        secret_key: Optional[str] = None,
     ):
         self.api_token_client_id = api_token_client_id
         self.api_token_client_secret = api_token_client_secret
@@ -80,6 +83,7 @@ class Config:
         self.osk_node_signing_key_password = osk_node_signing_key_password
         self.remote_signing_node_master_seed = remote_signing_node_master_seed
         self.compliance_provider = compliance_provider
+        self.secret_key = secret_key or os.urandom(32).hex()
 
     def get_encryption_privkey(self):
         return bytes.fromhex(self.encryption_privkey_hex)
