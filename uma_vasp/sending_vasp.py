@@ -1,4 +1,3 @@
-import json
 import time
 from builtins import len
 from datetime import datetime
@@ -489,6 +488,10 @@ class SendingVasp:
             encoded_invoice=payreq_data.encoded_invoice,
             timeout_secs=30,
             maximum_fees_msats=1000,
+            signing_private_key=self.config.get_signing_privkey(),
+            sender_identifier=user.get_uma_address(
+                self.config
+            ),  # hashed with a monthly rotated seed and used for anonymized analysis
         )
         if not payment_result:
             _abort_with_error(500, "Payment failed.")
