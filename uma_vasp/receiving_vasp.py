@@ -3,6 +3,7 @@ import json
 from flask import Flask, current_app
 from flask import request as flask_request
 from lightspark import LightsparkSyncClient as LightsparkClient
+from typing import Optional
 from uma import (
     INonceCache,
     IPublicKeyCache,
@@ -312,12 +313,15 @@ class LightsparkInvoiceCreator(IUmaInvoiceCreator):
         self,
         amount_msats: int,
         metadata: str,
+        receiver_identifier: Optional[str],
     ) -> str:
         return self.client.create_uma_invoice(
             node_id=self.config.node_id,
             amount_msats=amount_msats,
             metadata=metadata,
             expiry_secs=600,  # expiry of 10 minutes. Will likely be shorter in real-world scenarios.
+            signing_private_key=self.config.get_signing_privkey(),
+            receiver_identifier=receiver_identifier, # hashed with a monthly rotated seed and used for anonymized analysis
         ).data.encoded_payment_request
 
 
