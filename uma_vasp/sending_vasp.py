@@ -49,6 +49,7 @@ from uma_vasp.sending_vasp_request_cache import (
 from uma_vasp.uma_exception import UmaException
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
+from demo.demo_uma_request_storage import RequestStorage
 
 
 class SendingVasp:
@@ -61,6 +62,7 @@ class SendingVasp:
         request_cache: ISendingVaspRequestCache,
         config: Config,
         nonce_cache: INonceCache,
+        uma_request_storage: RequestStorage,
     ) -> None:
         self.user_service = user_service
         self.compliance_service = compliance_service
@@ -69,6 +71,7 @@ class SendingVasp:
         self.request_cache = request_cache
         self.config = config
         self.nonce_cache = nonce_cache
+        self.uma_request_storage = uma_request_storage
 
     def handle_uma_lookup(self, receiver_uma: str):
         user = self._get_calling_user_or_abort()
@@ -545,6 +548,14 @@ class SendingVasp:
         if not receiving_currency:
             _abort_with_error(400, "Currency code is not supported.")
 
+        info = {
+            "amount": invoice.amount,
+            "receiving_currency_code": invoice.receving_currency.code,
+            "receiver_uma": receiver_uma,
+            "invoice_string": flask_request.json.get("invoice"),
+        }
+        self.uma_request_storage.save_request(invoice.invoice_uuid, info)
+
         # notify the user that they have a payment request
         return Response(status=200)
 
@@ -601,6 +612,9 @@ class SendingVasp:
             "paymentId": payment.id,
             "status": payment.status.value,
         }
+
+    def get_pending_uma_requests(self):
+        return self.uma_request_storage.get_requests()
 
     def _parse_and_validate_amount(
         self, amount_str: str, currency_code: str, lnurlp_response: LnurlpResponse
@@ -776,3 +790,7 @@ def register_routes(app: Flask, sending_vasp: SendingVasp):
             uma_user_name = uma_user_name[1:]
 
         return sending_vasp.handle_request_pay_invoice(invoice)
+
+    @app.route("/api/uma/pending_requests")
+    def handle_get_pending_requests(user_id: str):
+        return sending_vasp.get_pending_uma_requests()
