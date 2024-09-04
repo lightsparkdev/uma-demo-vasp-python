@@ -5,7 +5,7 @@ from typing import List, NoReturn, Optional
 from urllib.parse import urljoin
 
 import requests
-from flask import Flask, current_app
+from flask import Flask, current_app, Response
 from flask import request as flask_request
 from lightspark import CurrencyUnit
 from lightspark.utils.currency_amount import amount_as_msats
@@ -532,6 +532,21 @@ class SendingVasp:
                 else "SAT"
             ),
         }
+    
+    def handle_request_pay_invoice(self, invoice: Invoice):
+        receiver_uma = invoice.receiver_uma
+        receiving_domain = get_domain_from_uma_address(receiver_uma)
+        receiver_vasp_pubkey = fetch_public_key_for_vasp(
+            vasp_domain=receiving_domain,
+            cache=self.vasp_pubkey_cache,
+        )
+        verify_uma_invoice_signature(invoice, receiver_vasp_pubkey)
+        receiving_currency = CURRENCIES[invoice.receving_currency.code]
+        if not receiving_currency:
+            _abort_with_error(400, "Currency code is not supported.")
+
+        # notify the user that they have a payment request
+        return Response(status=200)
 
     def handle_send_payment(self, callback_uuid: str):
         if not callback_uuid or not callback_uuid.strip():
@@ -734,3 +749,30 @@ def register_routes(app: Flask, sending_vasp: SendingVasp):
     @app.route("/api/uma/pay_invoice", methods=["POST"])
     def handle_pay_invoice():
         return sending_vasp.handle_pay_invoice()
+
+    @app.route(
+        "/api/uma/request_pay_invoice", methods=["POST"], subdomain="<vasp_name>"
+    )
+    def handle_request_pay_invoice(vasp_name: str):
+        invoice_string = flask_request.json.get("invoice")
+        if not invoice_string:
+            _abort_with_error(401, "Invoice is required.")
+
+        invoice = Invoice.from_bech32_string(invoice_string)
+        if not invoice:
+            _abort_with_error(401, "Invalid invoice.")
+
+        sender_uma = (
+            invoice.sender_uma
+            if invoice.sender_uma is not None
+            else flask_request.json.get("sender")
+        )
+
+        if not sender_uma:
+            _abort_with_error(401, "Sender not provided")
+
+        uma_user_name = sender_uma.split("@")[0]
+        if uma_user_name.startswith("$"):
+            uma_user_name = uma_user_name[1:]
+
+        return sending_vasp.handle_request_pay_invoice(invoice)

@@ -391,7 +391,7 @@ class ReceivingVasp:
         # This should be included in the config file for sending vasp to query
         # Hardcoded for now, need to add validation and sanitization to parse the sender_uma
         sender_domain = sender_uma.split("@")[1]
-        url = self.config.get_complete_url(
+        url = self.config.get_complete_url_with_domain(
             sender_domain, "/api/uma/request_pay_invoice"
         )
         print(f"Sending pay request to {url}")
