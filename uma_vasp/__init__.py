@@ -20,6 +20,7 @@ from uma_vasp.demo.demo_user_service import DemoUserService
 from uma_vasp.demo.in_memory_sending_vasp_request_cache import (
     InMemorySendingVaspRequestCache,
 )
+from uma_vasp.demo.demo_uma_request_storage import RequestStorage
 from uma_vasp.receiving_vasp import ReceivingVasp
 from uma_vasp.receiving_vasp import register_routes as register_receiving_vasp_routes
 from uma_vasp.sending_vasp import SendingVasp
@@ -65,6 +66,7 @@ def create_app(config=None, lightspark_client=None):
         request_cache=InMemorySendingVaspRequestCache(),
         config=config,
         nonce_cache=nonce_cache,
+        uma_request_storage=RequestStorage(),
     )
 
     @app.route("/.well-known/lnurlpubkey")
