@@ -1,7 +1,7 @@
 from typing import Dict
 import dataclasses
 
-from request_storage import IRequestStorage
+from uma_vasp.request_storage import IRequestStorage
 
 
 @dataclasses.dataclass
