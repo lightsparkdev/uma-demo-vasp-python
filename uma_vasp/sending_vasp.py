@@ -532,7 +532,7 @@ class SendingVasp:
                 else "SAT"
             ),
         }
-    
+
     def handle_request_pay_invoice(self, invoice: Invoice):
         receiver_uma = invoice.receiver_uma
         receiving_domain = get_domain_from_uma_address(receiver_uma)

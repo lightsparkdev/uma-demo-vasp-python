@@ -111,6 +111,7 @@ class Config:
         protocol = "http" if is_domain_local(domain) else "https"
         return f"{protocol}://{self.get_uma_domain()}{path}"
 
+
 def require_env(env_var_name):
     value = os.environ.get(env_var_name)
     if value is None:
