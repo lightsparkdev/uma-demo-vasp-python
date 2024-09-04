@@ -375,7 +375,7 @@ class ReceivingVasp:
             )
 
         invoice = create_uma_invoice(
-            receiver_uma=user.get_uma_address(),
+            receiver_uma=user.get_uma_address(self.config),
             receiving_currency_amount=amount,
             receiving_currency=invoice_currency,
             expiration=two_days_from_now,
