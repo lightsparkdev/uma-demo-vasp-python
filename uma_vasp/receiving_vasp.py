@@ -276,9 +276,9 @@ class ReceivingVasp:
         if not currency_code:
             currency_code = "SAT"
         receiver_currencies = [
-            CURRENCIES[currency.code]
+            CURRENCIES[currency]
             for currency in user.currencies
-            if currency.code in CURRENCIES and currency.code == currency_code
+            if currency in CURRENCIES and currency == currency_code
         ]
         if len(receiver_currencies) == 0:
             raise UmaException(
@@ -296,9 +296,7 @@ class ReceivingVasp:
 
         two_days_from_now = datetime.now(timezone.utc) + timedelta(days=2)
 
-        callback = self.config.get_complete_url(
-            user.get_uma_domain(), f"{PAY_REQUEST_CALLBACK}{user.id}"
-        )
+        callback = self.config.get_complete_url(PAY_REQUEST_CALLBACK + user.id)
 
         payer_data_options = create_counterparty_data_options(
             {
@@ -310,7 +308,7 @@ class ReceivingVasp:
         )
 
         invoice = create_uma_invoice(
-            receiver_uma=user.get_uma_address(),
+            receiver_uma=user.get_uma_address(self.config),
             receiving_currency_amount=amount,
             receiving_currency=invoice_currency,
             expiration=two_days_from_now,

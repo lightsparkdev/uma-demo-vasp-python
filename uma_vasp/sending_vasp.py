@@ -314,10 +314,10 @@ class SendingVasp:
         is_amount_in_msats: bool,
         receiving_currency: Currency,
         user_id: str,
-        uma_version: str,
+        uma_version: Optional[str],
         invoice_uuid: Optional[str] = None,
     ):
-        user = User.from_id(user_id)
+        user = self.user_service.get_user_from_id(user_id)
 
         receiving_domain = get_domain_from_uma_address(receiver_uma)
         receiver_vasp_pubkey = fetch_public_key_for_vasp(
@@ -354,8 +354,8 @@ class SendingVasp:
             }
         )
         if uma_version is not None:
-            uma_version = ParsedVersion.load(uma_version).major
-        print(f"Payreq using UMA version {uma_version}")
+            parsed_uma_major_version = ParsedVersion.load(uma_version).major
+        print(f"Payreq using UMA version {parsed_uma_major_version}")
         payreq = create_pay_request(
             receiving_currency_code=receiving_currency.code,
             is_amount_in_receiving_currency=not is_amount_in_msats,
@@ -365,7 +365,9 @@ class SendingVasp:
             payer_email=user.email_address,
             payer_compliance=payer_compliance,
             requested_payee_data=requested_payee_data,
-            uma_major_version=uma_version if uma_version is not None else 1,
+            uma_major_version=(
+                parsed_uma_major_version if parsed_uma_major_version is not None else 1
+            ),
         )
         print(f"Payreq: {payreq.to_dict()}", flush=True)
 
