@@ -1,9 +1,11 @@
 from typing import Dict
 import dataclasses
 
+from request_storage import IRequestStorage
+
 
 @dataclasses.dataclass
-class RequestStorage:
+class RequestStorage(IRequestStorage):
     def __init__(self):
         self._cache = {}
 

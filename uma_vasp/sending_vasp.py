@@ -49,7 +49,7 @@ from uma_vasp.sending_vasp_request_cache import (
 from uma_vasp.uma_exception import UmaException
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
-from demo.demo_uma_request_storage import RequestStorage
+from uma_vasp.request_storage import IRequestStorage
 
 
 class SendingVasp:
@@ -62,7 +62,7 @@ class SendingVasp:
         request_cache: ISendingVaspRequestCache,
         config: Config,
         nonce_cache: INonceCache,
-        uma_request_storage: RequestStorage,
+        uma_request_storage: IRequestStorage,
     ) -> None:
         self.user_service = user_service
         self.compliance_service = compliance_service
