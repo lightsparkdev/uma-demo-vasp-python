@@ -318,6 +318,8 @@ class SendingVasp:
         invoice_uuid: Optional[str] = None,
     ):
         user = self.user_service.get_user_from_id(user_id)
+        if not user:
+            _abort_with_error(401, "Unauthorized")
 
         receiving_domain = get_domain_from_uma_address(receiver_uma)
         receiver_vasp_pubkey = fetch_public_key_for_vasp(
@@ -355,6 +357,8 @@ class SendingVasp:
         )
         if uma_version is not None:
             parsed_uma_major_version = ParsedVersion.load(uma_version).major
+        else:
+            parsed_uma_major_version = None
         print(f"Payreq using UMA version {parsed_uma_major_version}")
         payreq = create_pay_request(
             receiving_currency_code=receiving_currency.code,
