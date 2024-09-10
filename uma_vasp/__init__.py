@@ -75,6 +75,17 @@ def create_app(config=None, lightspark_client=None):
             config.signing_cert_chain, config.encryption_cert_chain
         ).to_dict()
 
+    @app.route("/.well-known/uma-configuration")
+    def handle_uma_configuration():
+        return jsonify(
+            {
+                "uma_major_versions": [0, 1],
+                "uma_request_endpoint": config.get_complete_url(
+                    "/api/uma/request_pay_invoice"
+                ),
+            }
+        )
+
     @app.route("/api/uma/utxoCallback", methods=["POST"])
     def handle_utxo_callback():
         print(f"Received UTXO callback for {request.args.get('txid')}:")
