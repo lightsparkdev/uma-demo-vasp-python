@@ -1,8 +1,7 @@
-import json
 import time
 from builtins import len
 from datetime import datetime
-from typing import List, NoReturn
+from typing import List
 from urllib.parse import urljoin
 
 import requests
@@ -41,11 +40,11 @@ from uma_vasp.config import Config
 from uma_vasp.currencies import CURRENCIES
 from uma_vasp.flask_helpers import abort_with_error
 from uma_vasp.lightspark_helpers import get_node, load_signing_key
+from uma_vasp.sending_vasp_payreq_response import SendingVaspPayReqResponse
 from uma_vasp.sending_vasp_request_cache import (
     ISendingVaspRequestCache,
     SendingVaspInitialRequestData,
 )
-from uma_vasp.uma_exception import UmaException
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
 
@@ -128,9 +127,7 @@ class SendingVasp:
                     lnurlp_response, receiver_vasp_pubkey, self.nonce_cache
                 )
             except InvalidSignatureException as e:
-                abort_with_error(
-                    424, f"Error verifying LNURLP response signature: {e}"
-                )
+                abort_with_error(424, f"Error verifying LNURLP response signature: {e}")
 
         callback_uuid = self.request_cache.save_lnurlp_response_data(
             lnurlp_response=lnurlp_response, receiver_uma=receiver_uma
@@ -212,9 +209,39 @@ class SendingVasp:
         )
         return requests.get(retry_url, timeout=20)
 
-    def handle_uma_payreq(self, callback_uuid: str):
+    def handle_uma_payreq_request(self, callback_uuid: str):
         user = self._get_calling_user_or_abort()
+        receiving_currency_code = flask_request.args.get("receivingCurrencyCode", "SAT")
 
+        initial_request_data = self.request_cache.get_lnurlp_response_data(
+            callback_uuid
+        )
+        if initial_request_data is None:
+            abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
+        is_amount_in_msats = (
+            flask_request.args.get("isAmountInMsats", "").lower() == "true"
+        )
+        amount = self._parse_and_validate_amount(
+            flask_request.args.get("amount", ""),
+            "SAT" if is_amount_in_msats else receiving_currency_code,
+            initial_request_data.lnurlp_response,
+        )
+        return self.handle_uma_payreq(
+            callback_uuid,
+            is_amount_in_msats,
+            amount,
+            receiving_currency_code,
+            user,
+        ).to_json()
+
+    def handle_uma_payreq(
+        self,
+        callback_uuid: str,
+        is_amount_in_msats: bool,
+        amount: int,
+        receiving_currency_code: str,
+        user: User,
+    ) -> SendingVaspPayReqResponse:
         initial_request_data = self.request_cache.get_lnurlp_response_data(
             callback_uuid
         )
@@ -223,6 +250,7 @@ class SendingVasp:
 
         receiving_currency_code = flask_request.args.get("receivingCurrencyCode", "SAT")
 
+        # TODO: Handle sending currencies besides SATs here and simulate the exchange.
         is_amount_in_msats = (
             flask_request.args.get("isAmountInMsats", "").lower() == "true"
         )
@@ -342,9 +370,7 @@ class SendingVasp:
                     self.nonce_cache,
                 )
             except InvalidSignatureException as e:
-                abort_with_error(
-                    424, f"Error verifying payreq response signature: {e}"
-                )
+                abort_with_error(424, f"Error verifying payreq response signature: {e}")
 
         payment_info = none_throws(payreq_response.payment_info)
         if not self.compliance_service.pre_screen_transaction(
@@ -376,16 +402,25 @@ class SendingVasp:
             receiving_node_pubkey=compliance.node_pubkey,
         )
 
-        return {
-            "senderCurrencies": [currency.to_dict() for currency in sender_currencies],
-            "callbackUuid": new_callback_uuid,
-            "encodedInvoice": payreq_response.encoded_invoice,
-            "amountMsats": amount_as_msats(invoice_data.amount),
-            "conversionRate": payment_info.multiplier,
-            "exchangeFeesMsats": payment_info.exchange_fees_msats,
-            "receivingCurrencyCode": payment_info.currency_code,
-            "amountReceivingCurrency": payment_info.amount,
-        }
+        amount_receiving_currency = (
+            payreq_response.payment_info.amount
+            if payreq_response.payment_info and payreq_response.payment_info.amount
+            else round(amount_as_msats(invoice_data.amount) / 1000)
+        )
+
+        return SendingVaspPayReqResponse(
+            sender_currencies=sender_currencies,
+            callback_uuid=new_callback_uuid,
+            encoded_invoice=payreq_response.encoded_invoice,
+            amount_msats=amount_as_msats(invoice_data.amount),
+            conversion_rate=payment_info.multiplier,
+            exchange_fees_msats=payment_info.exchange_fees_msats,
+            receiving_currency_code=payment_info.currency_code,
+            amount_receiving_currency=amount_receiving_currency,
+            payment_hash=invoice_data.payment_hash,
+            invoice_expires_at=round(invoice_data.expires_at.timestamp()),
+            uma_invoice_uuid=None,
+        )
 
     def _handle_as_non_uma_payreq(
         self,
@@ -393,7 +428,7 @@ class SendingVasp:
         amount: int,
         receiving_currency_code: str,
         is_amount_in_msats: bool,
-    ):
+    ) -> SendingVaspPayReqResponse:
         user = self._get_calling_user_or_abort()
         sender_currencies = [
             CURRENCIES[currency]
@@ -443,27 +478,35 @@ class SendingVasp:
             receiving_node_pubkey=None,
         )
 
-        return {
-            "senderCurrencies": [currency.to_dict() for currency in sender_currencies],
-            "callbackUuid": new_callback_uuid,
-            "encodedInvoice": payreq_response.encoded_invoice,
-            "amountMsats": invoice_data.amount.original_value,
-            "conversionRate": (
+        return SendingVaspPayReqResponse(
+            sender_currencies=sender_currencies,
+            callback_uuid=new_callback_uuid,
+            encoded_invoice=payreq_response.encoded_invoice,
+            amount_msats=amount_as_msats(invoice_data.amount),
+            conversion_rate=(
                 payreq_response.payment_info.multiplier
                 if payreq_response.payment_info
                 else 1
             ),
-            "exchangeFeesMsats": (
+            exchange_fees_msats=(
                 payreq_response.payment_info.exchange_fees_msats
                 if payreq_response.payment_info
                 else 0
             ),
-            "currencyCode": (
+            receiving_currency_code=(
                 payreq_response.payment_info.currency_code
                 if payreq_response.payment_info
                 else "SAT"
             ),
-        }
+            amount_receiving_currency=(
+                payreq_response.payment_info.amount
+                if payreq_response.payment_info and payreq_response.payment_info.amount
+                else amount_as_msats(invoice_data.amount)
+            ),
+            payment_hash=invoice_data.payment_hash,
+            invoice_expires_at=round(invoice_data.expires_at.timestamp()),
+            uma_invoice_uuid=None,
+        )
 
     def handle_send_payment(self, callback_uuid: str):
         if not callback_uuid or not callback_uuid.strip():
@@ -623,7 +666,7 @@ def register_routes(app: Flask, sending_vasp: SendingVasp):
 
     @app.route("/api/umapayreq/<callback_uuid>")
     def handle_uma_payreq(callback_uuid: str):
-        return sending_vasp.handle_uma_payreq(callback_uuid)
+        return sending_vasp.handle_uma_payreq_request(callback_uuid)
 
     @app.route("/api/sendpayment/<callback_uuid>", methods=["POST"])
     def handle_send_payment(callback_uuid: str):

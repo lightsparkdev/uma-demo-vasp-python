@@ -57,6 +57,8 @@ class FakeLightsparkClient(LightsparkSyncClient):
         amount_msats: int,
         metadata: str,
         expiry_secs: Optional[int] = None,
+        signing_private_key: Optional[bytes] = None,
+        receiver_identifier: Optional[str] = None,
     ) -> Invoice:
         requester = Requester("abcd", "1234")
         destination_node = GraphNode(

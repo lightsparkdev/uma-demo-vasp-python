@@ -12,7 +12,7 @@ class UmaException(Exception):
         return f"UmaException: {self.message}, Status Code: {self.status_code}"
 
     def to_dict(self):
-        json_dict = {"reason": self.message, "status": "ERROR"} 
+        json_dict = {"reason": self.message, "status": "ERROR"}
         if self.code:
             json_dict["code"] = self.code
         return json_dict

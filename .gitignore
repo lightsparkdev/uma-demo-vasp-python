@@ -4,3 +4,4 @@ lightspark.egg-info/
 dist/
 .vscode/
 local.env
+nwc_db/
