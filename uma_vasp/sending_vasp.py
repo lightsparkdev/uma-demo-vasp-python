@@ -764,10 +764,8 @@ def register_routes(app: Flask, sending_vasp: SendingVasp):
     def handle_pay_invoice():
         return sending_vasp.handle_pay_invoice()
 
-    @app.route(
-        "/api/uma/request_pay_invoice", methods=["POST"], subdomain="<vasp_name>"
-    )
-    def handle_request_pay_invoice(vasp_name: str):
+    @app.route("/api/uma/request_pay_invoice", methods=["POST"])
+    def handle_request_pay_invoice():
         invoice_string = flask_request.json.get("invoice")
         if not invoice_string:
             _abort_with_error(401, "Invoice is required.")
