@@ -375,6 +375,7 @@ class SendingVasp:
             uma_major_version=(
                 parsed_uma_major_version if parsed_uma_major_version is not None else 1
             ),
+            invoice_uuid=invoice_uuid,
         )
         print(f"Payreq: {payreq.to_dict()}", flush=True)
 
