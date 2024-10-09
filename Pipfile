@@ -15,7 +15,7 @@ flask-cors = "*"
 bech32 = "*"
 
 [dev-packages]
-black = "*"
+black = "<24"
 isort = "*"
 pyre-check = "*"
 pytest = "~=7.4.4"
