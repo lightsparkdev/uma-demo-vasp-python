@@ -3,9 +3,8 @@ from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from bolt11 import decode as bolt11_decode
-from flask import Flask, redirect
+from flask import Flask
 from flask import request as flask_request
-from flask import url_for
 from lightspark import LightsparkNode
 from lightspark import LightsparkSyncClient as LightsparkClient
 from lightspark import TransactionStatus
@@ -124,6 +123,7 @@ class UmaAuthAdapter:
                 "make_invoice",
                 "lookup_invoice",
                 "get_balance",
+                "get_budget",
                 "get_info",
                 "list_transactions",
                 "pay_keysend",

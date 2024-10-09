@@ -244,6 +244,12 @@ class SendingVasp:
 
         receiving_currency = CURRENCIES[invoice.receving_currency.code]
 
+        version_strs = invoice.uma_versions.split(",")
+        major_versions = [
+            ParsedVersion.load(uma_version).major for uma_version in version_strs
+        ]
+        highest_version = select_highest_supported_version(major_versions)
+
         return self._handle_internal_uma_payreq(
             receiver_uma=receiver_uma,
             callback=invoice.callback,
@@ -251,7 +257,7 @@ class SendingVasp:
             is_amount_in_msats=receiving_currency.code == "SAT",
             receiving_currency=receiving_currency,
             user_id=user.id,
-            uma_version=invoice.uma_versions,
+            uma_version=highest_version,
             invoice_uuid=invoice.invoice_uuid,
         ).to_json()
 
@@ -781,7 +787,7 @@ def register_routes(app: Flask, sending_vasp: SendingVasp):
         return sending_vasp.handle_send_payment(callback_uuid)
 
     @app.route("/api/uma/pay_invoice", methods=["POST"])
-    def handle_pay_invoice():
+    def handle_pay_uma_invoice():
         return sending_vasp.handle_pay_invoice()
 
     @app.route("/api/uma/request_pay_invoice", methods=["POST"])

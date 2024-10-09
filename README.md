@@ -8,6 +8,12 @@ An example UMA VASP server implementation using Python.
 pipenv install --dev
 ```
 
+To run locally, you'll also need to create a sqlite database:
+
+```bash
+mkdir nwc_db && touch nwc_db/nwc.sqlite
+```
+
 ## Running
 
 ```bash
