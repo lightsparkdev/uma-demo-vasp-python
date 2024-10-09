@@ -19,7 +19,7 @@ black = "<24"
 isort = "*"
 pyre-check = "*"
 pytest = "~=7.4.4"
-pylint = "*"
+pylint = "<3.3"
 # Need to lock this version to avoid breaking older python versions:
 libcst = "==1.1.0"
 exceptiongroup = "*"
