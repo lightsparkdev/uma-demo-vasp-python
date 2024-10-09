@@ -1,11 +1,14 @@
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from flask import Flask, current_app
+import requests
+from flask import Flask, Response, current_app
 from flask import request as flask_request
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
     INonceCache,
+    InvoiceCurrency,
     IPublicKeyCache,
     IUmaInvoiceCreator,
     KycStatus,
@@ -18,6 +21,7 @@ from uma import (
     compliance_from_payer_data,
     create_counterparty_data_options,
     create_pay_req_response,
+    create_uma_invoice,
     create_uma_lnurlp_response,
     fetch_public_key_for_vasp,
     none_throws,
@@ -259,6 +263,152 @@ class ReceivingVasp:
             payee_data=None,
         ).to_dict()
 
+    def handle_create_uma_invoice(self, user_id: str):
+        user = self.user_service.get_user_from_id(user_id)
+        if not user:
+            raise UmaException(
+                f"Cannot find user {user_id}",
+                status_code=404,
+            )
+
+        amount = flask_request.json.get("amount")
+
+        currency_code = flask_request.json.get("currency_code")
+        if not currency_code:
+            currency_code = "SAT"
+        receiver_currencies = [
+            CURRENCIES[currency]
+            for currency in user.currencies
+            if currency in CURRENCIES and currency == currency_code
+        ]
+        if len(receiver_currencies) == 0:
+            raise UmaException(
+                f"User does not support currency {currency_code}",
+                status_code=400,
+            )
+        currency = receiver_currencies[0]
+
+        invoice_currency = InvoiceCurrency(
+            code=currency.code,
+            name=currency.name,
+            symbol=currency.symbol,
+            decimals=currency.decimals,
+        )
+
+        two_days_from_now = datetime.now(timezone.utc) + timedelta(days=2)
+
+        callback = self.config.get_complete_url(PAY_REQUEST_CALLBACK + user.id)
+
+        payer_data_options = create_counterparty_data_options(
+            {
+                "name": False,
+                "email": False,
+                "identifier": True,
+                "compliance": True,
+            }
+        )
+
+        invoice = create_uma_invoice(
+            receiver_uma=user.get_uma_address(self.config),
+            receiving_currency_amount=amount,
+            receiving_currency=invoice_currency,
+            expiration=two_days_from_now,
+            callback=callback,
+            is_subject_to_travel_rule=True,
+            signing_private_key=self.config.get_signing_privkey(),
+            required_payer_data=payer_data_options,
+            receiver_kyc_status=KycStatus.VERIFIED,
+        )
+        return invoice.to_bech32_string()
+
+    def create_and_send_invoice(self, user_id: str):
+        user = self.user_service.get_user_from_id(user_id)
+        if not user:
+            raise UmaException(
+                f"Cannot find user {user_id}",
+                status_code=404,
+            )
+
+        amount = flask_request.json.get("amount")
+
+        currency_code = flask_request.json.get("currency_code")
+        if not currency_code:
+            currency_code = "SAT"
+        receiver_currencies = [
+            CURRENCIES[currency]
+            for currency in user.currencies
+            if currency in CURRENCIES and currency == currency_code
+        ]
+        if len(receiver_currencies) == 0:
+            raise UmaException(
+                f"User does not support currency {currency_code}",
+                status_code=400,
+            )
+        currency = receiver_currencies[0]
+
+        invoice_currency = InvoiceCurrency(
+            code=currency.code,
+            name=currency.name,
+            symbol=currency.symbol,
+            decimals=currency.decimals,
+        )
+
+        two_days_from_now = datetime.now(timezone.utc) + timedelta(days=2)
+
+        callback = self.config.get_complete_url(PAY_REQUEST_CALLBACK + user.id)
+
+        payer_data_options = create_counterparty_data_options(
+            {
+                "name": False,
+                "email": False,
+                "identifier": True,
+                "compliance": True,
+            }
+        )
+
+        sender_uma = flask_request.json.get("sender_uma")
+        if not sender_uma:
+            raise UmaException(
+                f"Cannot find sender_uma",
+                status_code=404,
+            )
+
+        invoice = create_uma_invoice(
+            receiver_uma=user.get_uma_address(self.config),
+            receiving_currency_amount=amount,
+            receiving_currency=invoice_currency,
+            expiration=two_days_from_now,
+            callback=callback,
+            is_subject_to_travel_rule=True,
+            signing_private_key=self.config.get_signing_privkey(),
+            required_payer_data=payer_data_options,
+            receiver_kyc_status=KycStatus.VERIFIED,
+            sender_uma=sender_uma,
+        )
+
+        invoice_str = invoice.to_bech32_string()
+        # This should be included in the config file for sending vasp to query
+        # Hardcoded for now, need to add validation and sanitization to parse the sender_uma
+        sender_domain = sender_uma.split("@")[1]
+        url = self.config.get_complete_url_with_domain(
+            sender_domain, "/api/uma/request_pay_invoice"
+        )
+        print(f"Sending pay request to {url}")
+        vars = {"invoice": invoice_str}
+        res = requests.post(
+            url,
+            json=vars,
+            timeout=20,
+        )
+
+        if not res.ok:
+            raise UmaException(
+                f"Error sending pay request: {res.status_code} {res.text}",
+                status_code=424,
+            )
+
+        return Response(status=200)
+
     def _handle_non_uma_pay_request(
         self, request: PayRequest, receiver_user: User
     ) -> PayReqResponse:
@@ -321,7 +471,7 @@ class LightsparkInvoiceCreator(IUmaInvoiceCreator):
             metadata=metadata,
             expiry_secs=600,  # expiry of 10 minutes. Will likely be shorter in real-world scenarios.
             signing_private_key=self.config.get_signing_privkey(),
-            receiver_identifier=receiver_identifier,
+            receiver_identifier=receiver_identifier,  # hashed with a monthly rotated seed and used for anonymized analysis
         ).data.encoded_payment_request
 
 
@@ -337,3 +487,7 @@ def register_routes(app: Flask, receiving_vasp: ReceivingVasp):
     @app.route(PAY_REQUEST_CALLBACK + "<user_id>", methods=["GET"])
     def handle_lnurl_pay_request_callback(user_id: str):
         return receiving_vasp.handle_pay_request_callback(user_id)
+
+    @app.route("/api/uma/create_invoice/<user_id>", methods=["POST"])
+    def handle_create_uma_invoice(user_id: str):
+        return receiving_vasp.handle_create_uma_invoice(user_id)

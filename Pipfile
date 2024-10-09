@@ -12,6 +12,7 @@ pyjwt = "*"
 uma-auth-api = "*"
 bolt11 = "*"
 flask-cors = "*"
+bech32 = "*"
 
 [dev-packages]
 black = "*"
