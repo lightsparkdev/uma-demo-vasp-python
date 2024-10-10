@@ -1,13 +1,14 @@
-from lightspark import LightsparkSyncClient, LightsparkNode
+from lightspark import LightsparkNode, LightsparkSyncClient
 
 from uma_vasp.config import Config
 from uma_vasp.flask_helpers import abort_with_error
+from uma_vasp.uma_exception import UmaException
 
 
 def get_node(lightspark_client: LightsparkSyncClient, node_id: str) -> LightsparkNode:
     node = lightspark_client.get_entity(node_id, LightsparkNode)
     if not node:
-        raise Exception(f"Cannot find node {node_id}")
+        raise UmaException(f"Cannot find node {node_id}", 404)
     return node
 
 

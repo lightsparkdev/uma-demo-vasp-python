@@ -1,10 +1,10 @@
 import json
-from typing import Optional
-import jwt
 from datetime import datetime, timedelta, timezone
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse, unquote_plus
+from typing import Optional
+from urllib.parse import parse_qs, unquote_plus, urlencode, urlparse, urlunparse
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask_cors import CORS
 from lightspark import LightsparkSyncClient
 from uma import (
     InMemoryNonceCache,
@@ -21,17 +21,16 @@ from uma_vasp.auth import create_jwt
 from uma_vasp.config import Config
 from uma_vasp.currencies import CURRENCIES
 from uma_vasp.demo.demo_compliance_service import DemoComplianceService
+from uma_vasp.demo.demo_uma_request_storage import RequestStorage
 from uma_vasp.demo.demo_user_service import DemoUserService
 from uma_vasp.demo.in_memory_sending_vasp_request_cache import (
     InMemorySendingVaspRequestCache,
 )
-from uma_vasp.demo.demo_uma_request_storage import RequestStorage
 from uma_vasp.receiving_vasp import ReceivingVasp
 from uma_vasp.receiving_vasp import register_routes as register_receiving_vasp_routes
 from uma_vasp.sending_vasp import SendingVasp
 from uma_vasp.sending_vasp import register_routes as register_sending_vasp_routes
 from uma_vasp.uma_auth_adapter import UmaAuthAdapter
-from flask_cors import CORS
 from uma_vasp.uma_auth_adapter import (
     register_routes as register_uma_auth_adapter_routes,
 )
@@ -112,7 +111,7 @@ def create_app(config_override: Optional[Config] = None, lightspark_client=None)
         except Exception as e:
             raise UmaException(
                 status_code=400, message=f"Error parsing UTXO callback: {e}"
-            )
+            ) from e
 
         print(tx_callback.to_json())
 
@@ -128,7 +127,7 @@ def create_app(config_override: Optional[Config] = None, lightspark_client=None)
             except InvalidSignatureException as e:
                 raise UmaException(
                     f"Error verifying post-tx callback signature: {e}", 424
-                )
+                ) from e
 
         return "OK"
 
@@ -169,7 +168,7 @@ def create_app(config_override: Optional[Config] = None, lightspark_client=None)
                 user_service.validate_login(
                     request.form["username"], request.form["password"]
                 )
-                == False
+                is False
             ):
                 error = "Invalid Credentials. Please try again."
             else:

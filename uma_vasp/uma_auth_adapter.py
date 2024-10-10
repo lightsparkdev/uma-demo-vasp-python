@@ -137,7 +137,7 @@ class UmaAuthAdapter:
         ).to_dict()
 
     def handle_pay_invoice(self, invoice: str, amount: Optional[int]):
-        user = self.sending_vasp._get_calling_user_or_abort()
+        user = self._get_calling_user_or_abort()
         print(f"User {user} is paying invoice {invoice} with amount {amount}.")
         # TODO: pay for this particular user when we have a ledger.
         request_json = flask_request.get_json()
@@ -191,7 +191,7 @@ class UmaAuthAdapter:
         except Exception as e:
             abort_with_error(400, f"Invalid request: {e}")
 
-        _ = self.sending_vasp._get_calling_user_or_abort()
+        _ = self._get_calling_user_or_abort()
         # TODO: create invoice for this particular user when we have a ledger.
         invoice = self.lightspark_client.create_invoice(
             self.config.node_id,
@@ -211,7 +211,7 @@ class UmaAuthAdapter:
         ).to_dict()
 
     def handle_get_invoice(self, payment_hash: str):
-        user = self.sending_vasp._get_calling_user_or_abort()
+        user = self._get_calling_user_or_abort()
         print(f"User {user} is looking up invoice with payment hash {payment_hash}.")
 
         # TODO: only allow user to look up their own invoices.
@@ -242,9 +242,11 @@ class UmaAuthAdapter:
                 else (
                     # pylint is being dumb here. It's not possible for decoded_bolt11 to be
                     # used before assignment.
-                    int(decoded_bolt11.amount_msat) # pylint: disable=possibly-used-before-assignment
-                    if decoded_bolt11.amount_msat # pylint: disable=possibly-used-before-assignment
-                    else 0  
+                    int(
+                        decoded_bolt11.amount_msat
+                    )  # pylint: disable=possibly-used-before-assignment
+                    if decoded_bolt11.amount_msat  # pylint: disable=possibly-used-before-assignment
+                    else 0
                 )
             ),
             created_at=round(
@@ -268,7 +270,7 @@ class UmaAuthAdapter:
         ).to_dict()
 
     def handle_get_balance(self):
-        user = self.sending_vasp._get_calling_user_or_abort()
+        user = self._get_calling_user_or_abort()
         print(f"User {user} is looking up their balance.")
         # TODO: only allow user to look up their own balance based on a ledger.
         node = self.lightspark_client.get_entity(self.config.node_id, LightsparkNode)
@@ -290,14 +292,14 @@ class UmaAuthAdapter:
         ).to_dict()
 
     def transactions(self):
-        user = self.sending_vasp._get_calling_user_or_abort()
+        user = self._get_calling_user_or_abort()
         print(f"User {user} is looking up their transactions.")
         request_params = flask_request.args
         from_date_sec = request_params.get("from")
         until_date_sec = request_params.get("until")
         limit = request_params.get("limit")
         offset = request_params.get("offset")
-        type = request_params.get("type")
+        tx_type = request_params.get("type")
 
         from_date = None
         until_date = None
@@ -315,7 +317,7 @@ class UmaAuthAdapter:
         except ValueError:
             abort_with_error(400, "Invalid offset")
 
-        if type and type not in ["incoming", "outgoing"]:
+        if tx_type and tx_type not in ["incoming", "outgoing"]:
             abort_with_error(400, "Invalid type")
 
         # TODO: only allow user to look up their own transactions based on a ledger.
@@ -327,9 +329,9 @@ class UmaAuthAdapter:
             LightsparkTransactionType.INCOMING_PAYMENT,
             LightsparkTransactionType.OUTGOING_PAYMENT,
         ]
-        if type == "incoming":
+        if tx_type == "incoming":
             ls_types = [LightsparkTransactionType.INCOMING_PAYMENT]
-        elif type == "outgoing":
+        elif tx_type == "outgoing":
             ls_types = [LightsparkTransactionType.OUTGOING_PAYMENT]
 
         account = self.lightspark_client.get_current_account()
@@ -507,10 +509,7 @@ class UmaAuthAdapter:
         except Exception as e:
             abort_with_error(400, f"Invalid request: {e}")
 
-        if (
-            request_data.sending_currency_code != "BTC"
-            and request_data.sending_currency_code != "SAT"
-        ):
+        if request_data.sending_currency_code in ("BTC", "SAT"):
             abort_with_error(
                 400, "Sending currencies besides BTC/SAT are not yet supported"
             )

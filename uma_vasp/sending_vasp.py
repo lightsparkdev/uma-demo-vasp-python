@@ -818,5 +818,5 @@ def register_routes(app: Flask, sending_vasp: SendingVasp):
         return sending_vasp.handle_request_pay_invoice(invoice)
 
     @app.route("/api/uma/pending_requests")
-    def handle_get_pending_requests(user_id: str):
+    def handle_get_pending_requests():
         return sending_vasp.get_pending_uma_requests()

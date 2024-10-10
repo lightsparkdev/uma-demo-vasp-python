@@ -17,13 +17,14 @@ persistent=no
 #   R0902: too-many-instance-attributes
 #   R0903: too-few-public-methods
 #   R0904: too-many-public-methods
-#   R0913: too-many-arguments
+#   R0913: too-many-positional-arguments
+#   W0718: broad-exception-caught
 #   R0914: too-many-locals
 #   R0915: too-many-statements
 #   C0103: invalid-name
 #   C0104: disallowed-name
 
-disable=C0103,C0104,C0301,C0302,C0114,C0115,C0116,C0301,R0801,R0902,R0903,R0904,R0913,R0914,R0915
+disable=C0103,C0104,C0301,C0302,C0114,C0115,C0116,C0301,R0801,R0902,R0903,R0904,R0913,R0914,R0915,W0718,R0917
 
 [MISCELLANEOUS]
 
