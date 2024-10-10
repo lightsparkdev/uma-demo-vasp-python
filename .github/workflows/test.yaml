@@ -9,9 +9,6 @@ on:
 jobs:
   sdk-test:
     runs-on: "ubuntu-22.04"
-    strategy:
-      matrix:
-        python_version: ["3.8", "3.10"]
     steps:
       - name: "Checkout"
         uses: "actions/checkout@v3"
@@ -20,13 +17,13 @@ jobs:
       - name: "Setup Python"
         uses: "actions/setup-python@v4"
         with:
-          python-version: "${{ matrix.python_version }}"
+          python-version: "3.11"
           cache: "pipenv"
           cache-dependency-path: "Pipfile.lock"
       - name: "Install pipenv"
         run: "pip install pipenv wheel"
       - name: "Install dependencies"
-        run: "rm -rf $(pipenv --venv) && pipenv --python ${{ matrix.python_version }} install --dev"
+        run: "rm -rf $(pipenv --venv) && pipenv --python 3.11 install --dev"
       - name: "Run pyre"
         run: |
           set -o pipefail
@@ -34,7 +31,7 @@ jobs:
       - name: "Run pytest"
         run: "PYTHONPATH=. pipenv run pytest"
       - name: "Run pylint"
-        run: "PYTHONPATH=. pipenv run pylint --jobs 0 --score n --msg-template='::{category} file={abspath},line={line},col={column},title={msg_id} {symbol}::{msg}' uma"
+        run: "PYTHONPATH=. pipenv run pylint --jobs 0 --score n --msg-template='::{category} file={abspath},line={line},col={column},title={msg_id} {symbol}::{msg}' uma_vasp"
       - name: "Run black"
         run: |
           set -o pipefail

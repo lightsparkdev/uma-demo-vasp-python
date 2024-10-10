@@ -1,16 +1,16 @@
 import time
 from builtins import len
 from datetime import datetime
-from typing import List, NoReturn, Optional
+from typing import List, Optional
 from urllib.parse import urljoin
 
 import requests
-from flask import Flask, current_app, Response
+from flask import Flask, Response, current_app
 from flask import request as flask_request
 from lightspark import CurrencyUnit
-from lightspark.utils.currency_amount import amount_as_msats
 from lightspark import LightsparkSyncClient as LightsparkClient
 from lightspark import OutgoingPayment, PaymentDirection, TransactionStatus
+from lightspark.utils.currency_amount import amount_as_msats
 from uma import (
     Currency,
     INonceCache,
@@ -41,15 +41,16 @@ from uma_vasp.address_helpers import get_domain_from_uma_address
 from uma_vasp.compliance_service import IComplianceService
 from uma_vasp.config import Config
 from uma_vasp.currencies import CURRENCIES
-from uma_vasp.lightspark_helpers import get_node
+from uma_vasp.flask_helpers import abort_with_error
+from uma_vasp.lightspark_helpers import get_node, load_signing_key
+from uma_vasp.request_storage import IRequestStorage
+from uma_vasp.sending_vasp_payreq_response import SendingVaspPayReqResponse
 from uma_vasp.sending_vasp_request_cache import (
     ISendingVaspRequestCache,
     SendingVaspInitialRequestData,
 )
-from uma_vasp.uma_exception import UmaException
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
-from uma_vasp.request_storage import IRequestStorage
 
 
 class SendingVasp:
@@ -81,7 +82,7 @@ class SendingVasp:
             sending_uma_address=user.get_uma_address(self.config),
             receiving_uma_address=receiver_uma,
         ):
-            _abort_with_error(
+            abort_with_error(
                 403, "Transactions to that receiving VASP are not allowed."
             )
 
@@ -105,7 +106,7 @@ class SendingVasp:
             )
 
         if response.status_code != 200:
-            _abort_with_error(
+            abort_with_error(
                 424, f"Error fetching LNURLP: {response.status_code} {response.text}"
             )
 
@@ -113,7 +114,7 @@ class SendingVasp:
         try:
             lnurlp_response = parse_lnurlp_response(response.text)
         except Exception as e:
-            _abort_with_error(424, f"Error parsing LNURLP response: {e}")
+            abort_with_error(424, f"Error parsing LNURLP response: {e}")
 
         if not lnurlp_response.is_uma_response():
             print("Handling as regular LNURLP response:" + response.text, flush=True)
@@ -132,9 +133,7 @@ class SendingVasp:
                     lnurlp_response, receiver_vasp_pubkey, self.nonce_cache
                 )
             except InvalidSignatureException as e:
-                _abort_with_error(
-                    424, f"Error verifying LNURLP response signature: {e}"
-                )
+                abort_with_error(424, f"Error verifying LNURLP response signature: {e}")
 
         callback_uuid = self.request_cache.save_lnurlp_response_data(
             lnurlp_response=lnurlp_response, receiver_uma=receiver_uma
@@ -166,7 +165,7 @@ class SendingVasp:
     def _create_non_uma_lnurlp_request_url(self, receiver_address: str) -> str:
         receiver_address_parts = receiver_address.split("@")
         if len(receiver_address_parts) != 2:
-            _abort_with_error(400, "Invalid non-UMA receiver address.")
+            abort_with_error(400, "Invalid non-UMA receiver address.")
         scheme = "http" if is_domain_local(receiver_address_parts[1]) else "https"
         url_path = f"/.well-known/lnurlp/{receiver_address_parts[0]}"
         return urljoin(f"{scheme}://{receiver_address_parts[1]}", url_path)
@@ -201,10 +200,10 @@ class SendingVasp:
         response_body = response.json()
         supported_major_versions = response_body["supportedMajorVersions"]
         if not supported_major_versions or len(supported_major_versions) == 0:
-            _abort_with_error(424, "No major versions supported by receiving VASP.")
+            abort_with_error(424, "No major versions supported by receiving VASP.")
         new_version = select_highest_supported_version(supported_major_versions)
         if not new_version:
-            _abort_with_error(
+            abort_with_error(
                 424, "No matching UMA version compatible with receiving VASP."
             )
         retry_url = create_uma_lnurlp_request_url(
@@ -218,10 +217,12 @@ class SendingVasp:
 
     def handle_pay_invoice(self):
         user = self._get_calling_user_or_abort()
+        if not flask_request.json:
+            abort_with_error(400, "Request body is required")
 
         invoice_string = flask_request.json.get("invoice")
         if not invoice_string:
-            _abort_with_error(400, "Invoice is required.")
+            abort_with_error(400, "Invoice is required.")
 
         if not invoice_string.startswith("uma1"):
             invoice_string = self.uma_request_storage.get_request(invoice_string)[
@@ -230,7 +231,7 @@ class SendingVasp:
 
         invoice = Invoice.from_bech32_string(invoice_string)
         if not invoice:
-            _abort_with_error(400, "Invalid invoice.")
+            abort_with_error(400, "Invalid invoice.")
 
         receiver_uma = invoice.receiver_uma
         receiving_domain = get_domain_from_uma_address(receiver_uma)
@@ -238,10 +239,16 @@ class SendingVasp:
             vasp_domain=receiving_domain,
             cache=self.vasp_pubkey_cache,
         )
-        print(f"Signature: {invoice.signature.hex()}")
+
         verify_uma_invoice_signature(invoice, receiver_vasp_pubkey)
 
         receiving_currency = CURRENCIES[invoice.receving_currency.code]
+
+        version_strs = invoice.uma_versions.split(",")
+        major_versions = [
+            ParsedVersion.load(uma_version).major for uma_version in version_strs
+        ]
+        highest_version = select_highest_supported_version(major_versions)
 
         return self._handle_internal_uma_payreq(
             receiver_uma=receiver_uma,
@@ -250,21 +257,52 @@ class SendingVasp:
             is_amount_in_msats=receiving_currency.code == "SAT",
             receiving_currency=receiving_currency,
             user_id=user.id,
-            uma_version=invoice.uma_version,
+            uma_version=highest_version,
             invoice_uuid=invoice.invoice_uuid,
         ).to_json()
 
-    def handle_uma_payreq(self, callback_uuid: str):
+    def handle_uma_payreq_request(self, callback_uuid: str):
         user = self._get_calling_user_or_abort()
+        receiving_currency_code = flask_request.args.get("receivingCurrencyCode", "SAT")
 
         initial_request_data = self.request_cache.get_lnurlp_response_data(
             callback_uuid
         )
         if initial_request_data is None:
-            _abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
+            abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
+        is_amount_in_msats = (
+            flask_request.args.get("isAmountInMsats", "").lower() == "true"
+        )
+        amount = self._parse_and_validate_amount(
+            flask_request.args.get("amount", ""),
+            "SAT" if is_amount_in_msats else receiving_currency_code,
+            initial_request_data.lnurlp_response,
+        )
+        return self.handle_uma_payreq(
+            callback_uuid,
+            is_amount_in_msats,
+            amount,
+            receiving_currency_code,
+            user,
+        ).to_json()
+
+    def handle_uma_payreq(
+        self,
+        callback_uuid: str,
+        is_amount_in_msats: bool,
+        amount: int,
+        receiving_currency_code: str,
+        user: User,
+    ) -> SendingVaspPayReqResponse:
+        initial_request_data = self.request_cache.get_lnurlp_response_data(
+            callback_uuid
+        )
+        if initial_request_data is None:
+            abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
 
         receiving_currency_code = flask_request.args.get("receivingCurrencyCode", "SAT")
 
+        # TODO: Handle sending currencies besides SATs here and simulate the exchange.
         is_amount_in_msats = (
             flask_request.args.get("isAmountInMsats", "").lower() == "true"
         )
@@ -280,7 +318,7 @@ class SendingVasp:
             None,
         )
         if not receiving_currency:
-            _abort_with_error(400, "Currency code is not supported.")
+            abort_with_error(400, "Currency code is not supported.")
 
         amount = self._parse_and_validate_amount(
             flask_request.args.get("amount", ""),
@@ -322,7 +360,7 @@ class SendingVasp:
     ):
         user = self.user_service.get_user_from_id(user_id)
         if not user:
-            _abort_with_error(401, "Unauthorized")
+            abort_with_error(401, "Unauthorized")
 
         receiving_domain = get_domain_from_uma_address(receiver_uma)
         receiver_vasp_pubkey = fetch_public_key_for_vasp(
@@ -386,7 +424,7 @@ class SendingVasp:
         )
 
         if res.status_code != 200:
-            _abort_with_error(
+            abort_with_error(
                 424, f"Error sending pay request: {res.status_code} {res.text}"
             )
 
@@ -394,14 +432,14 @@ class SendingVasp:
         try:
             payreq_response = parse_pay_req_response(res.text)
         except Exception as e:
-            _abort_with_error(424, f"Error parsing pay request response: {e}")
+            abort_with_error(424, f"Error parsing pay request response: {e}")
 
         if not payreq_response.is_uma_response():
-            _abort_with_error(424, "Response to UMA payreq is not a UMA response.")
+            abort_with_error(424, "Response to UMA payreq is not a UMA response.")
 
         compliance = none_throws(payreq_response.get_compliance())
         if not compliance:
-            _abort_with_error(424, "No compliance data in pay request response.")
+            abort_with_error(424, "No compliance data in pay request response.")
 
         print(f"payreq_response: {payreq_response.to_dict()}")
         if uma_version == 1:
@@ -414,9 +452,7 @@ class SendingVasp:
                     self.nonce_cache,
                 )
             except InvalidSignatureException as e:
-                _abort_with_error(
-                    424, f"Error verifying payreq response signature: {e}"
-                )
+                abort_with_error(424, f"Error verifying payreq response signature: {e}")
 
         payment_info = none_throws(payreq_response.payment_info)
         if not self.compliance_service.pre_screen_transaction(
@@ -427,7 +463,7 @@ class SendingVasp:
             counterparty_node_id=compliance.node_pubkey,
             counterparty_utxos=compliance.utxos,
         ):
-            _abort_with_error(403, "Transaction is not allowed.")
+            abort_with_error(403, "Transaction is not allowed.")
 
         sender_currencies = [
             CURRENCIES[currency]
@@ -448,16 +484,25 @@ class SendingVasp:
             receiving_node_pubkey=compliance.node_pubkey,
         )
 
-        return {
-            "senderCurrencies": [currency.to_dict() for currency in sender_currencies],
-            "callbackUuid": new_callback_uuid,
-            "encodedInvoice": payreq_response.encoded_invoice,
-            "amountMsats": amount_as_msats(invoice_data.amount),
-            "conversionRate": payment_info.multiplier,
-            "exchangeFeesMsats": payment_info.exchange_fees_msats,
-            "receivingCurrencyCode": payment_info.currency_code,
-            "amountReceivingCurrency": payment_info.amount,
-        }
+        amount_receiving_currency = (
+            payreq_response.payment_info.amount
+            if payreq_response.payment_info and payreq_response.payment_info.amount
+            else round(amount_as_msats(invoice_data.amount) / 1000)
+        )
+
+        return SendingVaspPayReqResponse(
+            sender_currencies=sender_currencies,
+            callback_uuid=new_callback_uuid,
+            encoded_invoice=payreq_response.encoded_invoice,
+            amount_msats=amount_as_msats(invoice_data.amount),
+            conversion_rate=payment_info.multiplier,
+            exchange_fees_msats=payment_info.exchange_fees_msats,
+            receiving_currency_code=payment_info.currency_code,
+            amount_receiving_currency=amount_receiving_currency,
+            payment_hash=invoice_data.payment_hash,
+            invoice_expires_at=round(invoice_data.expires_at.timestamp()),
+            uma_invoice_uuid=None,
+        )
 
     def _handle_as_non_uma_payreq(
         self,
@@ -465,7 +510,7 @@ class SendingVasp:
         amount: int,
         receiving_currency_code: str,
         is_amount_in_msats: bool,
-    ):
+    ) -> SendingVaspPayReqResponse:
         user = self._get_calling_user_or_abort()
         sender_currencies = [
             CURRENCIES[currency]
@@ -492,7 +537,7 @@ class SendingVasp:
         )
 
         if res.status_code != 200:
-            _abort_with_error(
+            abort_with_error(
                 424, f"Error sending pay request: {res.status_code} {res.text}"
             )
 
@@ -500,7 +545,7 @@ class SendingVasp:
         try:
             payreq_response = parse_pay_req_response(res.text)
         except Exception as e:
-            _abort_with_error(424, f"Error parsing pay request response: {e}")
+            abort_with_error(424, f"Error parsing pay request response: {e}")
 
         invoice_data = self.lightspark_client.get_decoded_payment_request(
             payreq_response.encoded_invoice
@@ -515,29 +560,39 @@ class SendingVasp:
             receiving_node_pubkey=None,
         )
 
-        return {
-            "senderCurrencies": [currency.to_dict() for currency in sender_currencies],
-            "callbackUuid": new_callback_uuid,
-            "encodedInvoice": payreq_response.encoded_invoice,
-            "amountMsats": invoice_data.amount.original_value,
-            "conversionRate": (
+        return SendingVaspPayReqResponse(
+            sender_currencies=sender_currencies,
+            callback_uuid=new_callback_uuid,
+            encoded_invoice=payreq_response.encoded_invoice,
+            amount_msats=amount_as_msats(invoice_data.amount),
+            conversion_rate=(
                 payreq_response.payment_info.multiplier
                 if payreq_response.payment_info
                 else 1
             ),
-            "exchangeFeesMsats": (
+            exchange_fees_msats=(
                 payreq_response.payment_info.exchange_fees_msats
                 if payreq_response.payment_info
                 else 0
             ),
-            "currencyCode": (
+            receiving_currency_code=(
                 payreq_response.payment_info.currency_code
                 if payreq_response.payment_info
                 else "SAT"
             ),
-        }
+            amount_receiving_currency=(
+                payreq_response.payment_info.amount
+                if payreq_response.payment_info and payreq_response.payment_info.amount
+                else amount_as_msats(invoice_data.amount)
+            ),
+            payment_hash=invoice_data.payment_hash,
+            invoice_expires_at=round(invoice_data.expires_at.timestamp()),
+            uma_invoice_uuid=None,
+        )
 
     def handle_request_pay_invoice(self, invoice: Invoice):
+        if not flask_request.json:
+            abort_with_error(400, "Request body is required")
         receiver_uma = invoice.receiver_uma
         receiving_domain = get_domain_from_uma_address(receiver_uma)
         receiver_vasp_pubkey = fetch_public_key_for_vasp(
@@ -547,7 +602,7 @@ class SendingVasp:
         verify_uma_invoice_signature(invoice, receiver_vasp_pubkey)
         receiving_currency = CURRENCIES[invoice.receving_currency.code]
         if not receiving_currency:
-            _abort_with_error(400, "Currency code is not supported.")
+            abort_with_error(400, "Currency code is not supported.")
 
         info = {
             "amount": invoice.amount,
@@ -562,24 +617,24 @@ class SendingVasp:
 
     def handle_send_payment(self, callback_uuid: str):
         if not callback_uuid or not callback_uuid.strip():
-            _abort_with_error(400, "Callback UUID is required.")
+            abort_with_error(400, "Callback UUID is required.")
 
         user = self._get_calling_user_or_abort()
         payreq_data = self.request_cache.get_pay_req_data(callback_uuid)
         if not payreq_data:
-            _abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
+            abort_with_error(404, f"Cannot find callback UUID {callback_uuid}")
         if payreq_data.sending_user_id != user.id:
-            _abort_with_error(403, "You are not authorized to send this payment.")
+            abort_with_error(403, "You are not authorized to send this payment.")
 
         is_invoice_expired = (
             payreq_data.invoice_data.expires_at.timestamp() < datetime.now().timestamp()
         )
         if is_invoice_expired:
-            _abort_with_error(400, "Invoice has expired.")
+            abort_with_error(400, "Invoice has expired.")
 
         # TODO: Handle sending currencies besides SATs here and simulate the exchange.
 
-        self._load_signing_key()
+        load_signing_key(self.lightspark_client, self.config)
         payment_result = self.lightspark_client.pay_uma_invoice(
             node_id=self.config.node_id,
             encoded_invoice=payreq_data.encoded_invoice,
@@ -591,10 +646,10 @@ class SendingVasp:
             ),  # hashed with a monthly rotated seed and used for anonymized analysis
         )
         if not payment_result:
-            _abort_with_error(500, "Payment failed.")
+            abort_with_error(500, "Payment failed.")
         payment = self.wait_for_payment_completion(payment_result)
         if payment.status != TransactionStatus.SUCCESS:
-            _abort_with_error(
+            abort_with_error(
                 500,
                 f"Payment failed. Payment ID: {payment.id}",
             )
@@ -621,13 +676,13 @@ class SendingVasp:
         self, amount_str: str, currency_code: str, lnurlp_response: LnurlpResponse
     ) -> int:
         if not amount_str:
-            _abort_with_error(400, "Amount in required.")
+            abort_with_error(400, "Amount in required.")
 
         amount: int
         try:
             amount = int(amount_str)
         except ValueError:
-            _abort_with_error(400, "Amount must be an integer.")
+            abort_with_error(400, "Amount must be an integer.")
 
         # add SATS for sender-locked if not present:
         currencies = lnurlp_response.currencies or []
@@ -642,7 +697,7 @@ class SendingVasp:
             None,
         )
         if not target_currency:
-            _abort_with_error(
+            abort_with_error(
                 400,
                 f"Currency code {currency_code} is not supported.",
             )
@@ -651,7 +706,7 @@ class SendingVasp:
             amount < target_currency.min_sendable
             or amount > target_currency.max_sendable
         ):
-            _abort_with_error(
+            abort_with_error(
                 400,
                 f"Amount is out of range. Must be between {target_currency.min_sendable} and {target_currency.max_sendable}. Amount was {amount}.",
             )
@@ -663,7 +718,7 @@ class SendingVasp:
             flask_request.url, flask_request.headers
         )
         if not user:
-            _abort_with_error(401, "Unauthorized")
+            abort_with_error(401, "Unauthorized")
         return user
 
     def _send_post_tx_callback(self, payment: OutgoingPayment, utxo_callback: str):
@@ -702,31 +757,6 @@ class SendingVasp:
                 flush=True,
             )
 
-    def _load_signing_key(self):
-        node = get_node(self.lightspark_client, self.config.node_id)
-
-        if "OSK" in node.typename:
-            osk_password = self.config.osk_node_signing_key_password
-            if not osk_password:
-                _abort_with_error(
-                    400,
-                    "OSK password is required for OSK nodes.",
-                )
-            self.lightspark_client.recover_node_signing_key(
-                self.config.node_id, osk_password
-            )
-            return
-
-        # Assume remote signing.
-        master_seed = self.config.get_remote_signing_node_master_seed()
-        if not master_seed:
-            _abort_with_error(
-                400, "Remote signing master seed is required for remote signing nodes."
-            )
-        self.lightspark_client.provide_node_master_seed(
-            self.config.node_id, master_seed, node.bitcoin_network
-        )
-
     def wait_for_payment_completion(
         self, initial_payment: OutgoingPayment
     ) -> OutgoingPayment:
@@ -736,16 +766,11 @@ class SendingVasp:
         while payment.status == TransactionStatus.PENDING and num_retries < max_retries:
             payment = self.lightspark_client.get_entity(payment.id, OutgoingPayment)
             if not payment:
-                _abort_with_error(500, "Payment not found.")
+                abort_with_error(500, "Payment not found.")
             if payment.status == TransactionStatus.PENDING:
                 time.sleep(0.25)
             num_retries += 1
         return payment
-
-
-def _abort_with_error(status_code: int, reason: str) -> NoReturn:
-    print(f"Aborting with error {status_code}: {reason}")
-    raise UmaException(reason, status_code)
 
 
 def register_routes(app: Flask, sending_vasp: SendingVasp):
@@ -755,25 +780,27 @@ def register_routes(app: Flask, sending_vasp: SendingVasp):
 
     @app.route("/api/umapayreq/<callback_uuid>")
     def handle_uma_payreq(callback_uuid: str):
-        return sending_vasp.handle_uma_payreq(callback_uuid)
+        return sending_vasp.handle_uma_payreq_request(callback_uuid)
 
     @app.route("/api/sendpayment/<callback_uuid>", methods=["POST"])
     def handle_send_payment(callback_uuid: str):
         return sending_vasp.handle_send_payment(callback_uuid)
 
     @app.route("/api/uma/pay_invoice", methods=["POST"])
-    def handle_pay_invoice():
+    def handle_pay_uma_invoice():
         return sending_vasp.handle_pay_invoice()
 
     @app.route("/api/uma/request_pay_invoice", methods=["POST"])
     def handle_request_pay_invoice():
+        if not flask_request.json:
+            abort_with_error(400, "Request body is required")
         invoice_string = flask_request.json.get("invoice")
         if not invoice_string:
-            _abort_with_error(401, "Invoice is required.")
+            abort_with_error(401, "Invoice is required.")
 
         invoice = Invoice.from_bech32_string(invoice_string)
         if not invoice:
-            _abort_with_error(401, "Invalid invoice.")
+            abort_with_error(401, "Invalid invoice.")
 
         sender_uma = (
             invoice.sender_uma
@@ -782,7 +809,7 @@ def register_routes(app: Flask, sending_vasp: SendingVasp):
         )
 
         if not sender_uma:
-            _abort_with_error(401, "Sender not provided")
+            abort_with_error(401, "Sender not provided")
 
         uma_user_name = sender_uma.split("@")[0]
         if uma_user_name.startswith("$"):
@@ -791,5 +818,5 @@ def register_routes(app: Flask, sending_vasp: SendingVasp):
         return sending_vasp.handle_request_pay_invoice(invoice)
 
     @app.route("/api/uma/pending_requests")
-    def handle_get_pending_requests(user_id: str):
+    def handle_get_pending_requests():
         return sending_vasp.get_pending_uma_requests()

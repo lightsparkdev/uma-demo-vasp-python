@@ -2,8 +2,8 @@ import os
 from typing import Optional
 
 from flask import request
-from lightspark import ComplianceProvider
-from uma import is_domain_local
+from lightspark.objects.ComplianceProvider import ComplianceProvider
+from uma.urls import is_domain_local
 
 
 class Config:
@@ -27,6 +27,9 @@ class Config:
         remote_signing_node_master_seed = os.environ.get(
             "LIGHTSPARK_UMA_REMOTE_SIGNING_NODE_MASTER_SEED"
         )
+        secret_key = os.environ.get("COOKIE_SECRET")
+        nwc_jwt_private_key = os.environ.get("NWC_JWT_PRIVKEY")
+        nwc_jwt_public_key = os.environ.get("NWC_JWT_PUBKEY")
         compliance_provider = None
         try:
             compliance_env = os.environ.get("LIGHTSPARK_UMA_COMPLIANCE_PROVIDER")
@@ -45,12 +48,16 @@ class Config:
             signing_cert_chain,
             signing_pubkey_hex,
             signing_privkey_hex,
+            nwc_jwt_private_key,
+            nwc_jwt_public_key,
             base_url,
             osk_node_signing_key_password,
             remote_signing_node_master_seed,
             compliance_provider,
+            secret_key=secret_key,
         )
 
+    # pylint: disable=too-many-positional-arguments
     def __init__(
         self,
         api_token_client_id: str,
@@ -62,10 +69,13 @@ class Config:
         signing_cert_chain: str,
         signing_pubkey_hex: str,
         signing_privkey_hex: str,
+        nwc_jwt_private_key: Optional[str] = None,
+        nwc_jwt_public_key: Optional[str] = None,
         base_url: Optional[str] = None,
         osk_node_signing_key_password: Optional[str] = None,
         remote_signing_node_master_seed: Optional[str] = None,
         compliance_provider: Optional[ComplianceProvider] = None,
+        secret_key: Optional[str] = None,
     ):
         self.api_token_client_id = api_token_client_id
         self.api_token_client_secret = api_token_client_secret
@@ -76,10 +86,13 @@ class Config:
         self.signing_cert_chain = signing_cert_chain
         self.signing_pubkey_hex = signing_pubkey_hex
         self.signing_privkey_hex = signing_privkey_hex
+        self.nwc_jwt_private_key = nwc_jwt_private_key
+        self.nwc_jwt_public_key = nwc_jwt_public_key
         self.base_url = base_url
         self.osk_node_signing_key_password = osk_node_signing_key_password
         self.remote_signing_node_master_seed = remote_signing_node_master_seed
         self.compliance_provider = compliance_provider
+        self.secret_key = secret_key or os.urandom(32).hex()
 
     def get_encryption_privkey(self):
         return bytes.fromhex(self.encryption_privkey_hex)
@@ -94,6 +107,16 @@ class Config:
             else None
         )
 
+    def require_nwc_jwt_private_key(self):
+        if not self.nwc_jwt_private_key:
+            raise MissingEnvironmentVariableException("NWC_JWT_PRIVKEY is not set")
+        return self.nwc_jwt_private_key
+
+    def require_nwc_jwt_public_key(self):
+        if not self.nwc_jwt_public_key:
+            raise MissingEnvironmentVariableException("NWC_JWT_PUBKEY is not set")
+        return self.nwc_jwt_public_key
+
     def get_uma_domain(self) -> str:
         uma_domain = os.environ.get("LIGHTSPARK_UMA_VASP_DOMAIN")
         if uma_domain:
@@ -101,6 +124,12 @@ class Config:
 
         parts = request.url_root.split("/")
         return parts[-2]
+
+    def get_nwc_server_domain(self) -> str:
+        domain_from_env = os.environ.get("LIGHTSPARK_NWC_SERVER_DOMAIN")
+        if domain_from_env:
+            return domain_from_env
+        return f"nwc.{self.get_uma_domain()}"
 
     def get_complete_url(self, path: str) -> str:
         domain = self.get_uma_domain()

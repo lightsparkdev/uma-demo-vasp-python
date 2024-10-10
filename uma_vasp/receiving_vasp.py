@@ -1,17 +1,16 @@
 import json
 from datetime import datetime, timedelta, timezone
-
 from typing import Optional
+
 import requests
-from flask import Flask, current_app
+from flask import Flask, Response, current_app
 from flask import request as flask_request
-from flask import Response
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
     INonceCache,
+    InvoiceCurrency,
     IPublicKeyCache,
     IUmaInvoiceCreator,
-    InvoiceCurrency,
     KycStatus,
     LnurlpRequest,
     LnurlpResponse,
@@ -22,6 +21,7 @@ from uma import (
     compliance_from_payer_data,
     create_counterparty_data_options,
     create_pay_req_response,
+    create_uma_invoice,
     create_uma_lnurlp_response,
     fetch_public_key_for_vasp,
     none_throws,
@@ -29,7 +29,6 @@ from uma import (
     parse_pay_request,
     verify_pay_request_signature,
     verify_uma_lnurlp_query_signature,
-    create_uma_invoice,
 )
 
 from uma_vasp.address_helpers import get_domain_from_uma_address
@@ -80,7 +79,7 @@ class ReceivingVasp:
             raise UmaException(
                 f"Invalid UMA lnurlp request: {e}",
                 status_code=400,
-            )
+            ) from e
 
         user = self.user_service.get_user_from_uma_user_name(username)
         if not user:
@@ -109,7 +108,7 @@ class ReceivingVasp:
             raise UmaException(
                 f"Cannot fetch public key for vasp {lnurlp_request.vasp_domain}: {e}",
                 status_code=424,
-            )
+            ) from e
 
         # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
         is_testing = current_app.config.get("TESTING", False)
@@ -124,7 +123,7 @@ class ReceivingVasp:
                 raise UmaException(
                     f"Invalid signature: {e}",
                     status_code=400,
-                )
+                ) from e
 
         metadata = self._create_metadata(user)
         payer_data_options = create_counterparty_data_options(
@@ -188,7 +187,7 @@ class ReceivingVasp:
             raise UmaException(
                 f"Invalid UMA pay request: {e}",
                 status_code=400,
-            )
+            ) from e
         if not request.is_uma_request():
             return self._handle_non_uma_pay_request(request, user).to_dict()
 
@@ -221,7 +220,7 @@ class ReceivingVasp:
         msats_per_currency_unit = MSATS_PER_UNIT.get(receiving_currency_code, None)
         if msats_per_currency_unit is None:
             raise UmaException(
-                f"Currency code {receiving_currency_code} in the pay request is not supported. We support only {','.join(str(currency_code) for currency_code in MSATS_PER_UNIT.keys())}.",
+                f"Currency code {receiving_currency_code} in the pay request is not supported. We support only {','.join(str(currency_code) for currency_code in MSATS_PER_UNIT)}.",
                 status_code=400,
             )
         receiver_fees_msats = RECEIVER_FEES_MSATS[receiving_currency_code]
@@ -370,7 +369,7 @@ class ReceivingVasp:
         sender_uma = flask_request.json.get("sender_uma")
         if not sender_uma:
             raise UmaException(
-                f"Cannot find sender_uma",
+                "Cannot find sender_uma",
                 status_code=404,
             )
 
@@ -395,10 +394,9 @@ class ReceivingVasp:
             sender_domain, "/api/uma/request_pay_invoice"
         )
         print(f"Sending pay request to {url}")
-        vars = {"invoice": invoice_str}
         res = requests.post(
             url,
-            json=vars,
+            json={"invoice": invoice_str},
             timeout=20,
         )
 

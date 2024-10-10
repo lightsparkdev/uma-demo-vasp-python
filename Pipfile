@@ -8,6 +8,10 @@ lightspark = "*"
 flask = "*"
 requests = "*"
 uma-sdk = "*"
+pyjwt = "*"
+uma-auth-api = "*"
+bolt11 = "*"
+flask-cors = "*"
 bech32 = "*"
 
 [dev-packages]
