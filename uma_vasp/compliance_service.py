@@ -23,6 +23,7 @@ class IComplianceService(ABC):
         pass
 
     @abstractmethod
+    # pylint: disable=too-many-positional-arguments
     def pre_screen_transaction(
         self,
         sending_uma_address: str,

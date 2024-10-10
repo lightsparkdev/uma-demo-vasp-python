@@ -240,7 +240,11 @@ class UmaAuthAdapter:
                 amount_as_msats(invoice.data.amount)
                 if invoice
                 else (
-                    int(decoded_bolt11.amount_msat) if decoded_bolt11.amount_msat else 0
+                    # pylint is being dumb here. It's not possible for decoded_bolt11 to be
+                    # used before assignment.
+                    int(decoded_bolt11.amount_msat) # pylint: disable=possibly-used-before-assignment
+                    if decoded_bolt11.amount_msat # pylint: disable=possibly-used-before-assignment
+                    else 0  
                 )
             ),
             created_at=round(

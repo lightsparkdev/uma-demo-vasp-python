@@ -57,6 +57,7 @@ class Config:
             secret_key=secret_key,
         )
 
+    # pylint: disable=too-many-positional-arguments
     def __init__(
         self,
         api_token_client_id: str,
