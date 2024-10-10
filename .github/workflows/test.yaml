@@ -31,7 +31,7 @@ jobs:
       - name: "Run pytest"
         run: "PYTHONPATH=. pipenv run pytest"
       - name: "Run pylint"
-        run: "PYTHONPATH=. pipenv run pylint --jobs 0 --score n --msg-template='::{category} file={abspath},line={line},col={column},title={msg_id} {symbol}::{msg}' uma"
+        run: "PYTHONPATH=. pipenv run pylint --jobs 0 --score n --msg-template='::{category} file={abspath},line={line},col={column},title={msg_id} {symbol}::{msg}' uma_vasp"
       - name: "Run black"
         run: |
           set -o pipefail
