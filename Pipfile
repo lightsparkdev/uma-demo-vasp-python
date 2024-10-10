@@ -15,11 +15,10 @@ flask-cors = "*"
 bech32 = "*"
 
 [dev-packages]
-black = "<24"
+black = "*"
 isort = "*"
 pyre-check = "*"
 pytest = "~=7.4.4"
-pylint = "<3.3"
+pylint = "*"
 # Need to lock this version to avoid breaking older python versions:
 libcst = "==1.1.0"
-exceptiongroup = "*"
