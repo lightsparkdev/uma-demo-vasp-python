@@ -24,7 +24,7 @@ This will run the server on port 5000. You can change the port by setting the `F
 
 ## Running with Docker
 
-You can also run this server with Docker (and Docker Compose). First we need to build the image. From the root directory of this repo, run:
+You can also run this server with Docker (and Docker Compose).
 
 First we need to set up the config variables. You can do this by creating a file called `local.env` in the root
 directory of this repo. You can `cp local.env.example local.env` as a starting point. This file should contain the following:
