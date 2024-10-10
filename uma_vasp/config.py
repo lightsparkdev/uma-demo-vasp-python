@@ -110,7 +110,7 @@ class Config:
         if not self.nwc_jwt_private_key:
             raise MissingEnvironmentVariableException("NWC_JWT_PRIVKEY is not set")
         return self.nwc_jwt_private_key
-    
+
     def require_nwc_jwt_public_key(self):
         if not self.nwc_jwt_public_key:
             raise MissingEnvironmentVariableException("NWC_JWT_PUBKEY is not set")
