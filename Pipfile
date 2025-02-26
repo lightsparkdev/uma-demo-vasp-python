@@ -13,6 +13,7 @@ uma-auth-api = "*"
 bolt11 = "*"
 flask-cors = "*"
 bech32 = "*"
+aiohttp = "*"
 
 [dev-packages]
 black = "*"

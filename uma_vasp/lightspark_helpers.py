@@ -1,14 +1,14 @@
 from lightspark import LightsparkNode, LightsparkSyncClient
 
+from uma import ErrorCode
 from uma_vasp.config import Config
 from uma_vasp.flask_helpers import abort_with_error
-from uma_vasp.uma_exception import UmaException
 
 
 def get_node(lightspark_client: LightsparkSyncClient, node_id: str) -> LightsparkNode:
     node = lightspark_client.get_entity(node_id, LightsparkNode)
     if not node:
-        raise UmaException(f"Cannot find node {node_id}", 404)
+        abort_with_error(f"Cannot find node {node_id}", ErrorCode.INTERNAL_ERROR)
     return node
 
 
@@ -19,8 +19,8 @@ def load_signing_key(lightspark_client: LightsparkSyncClient, config: Config):
         osk_password = config.osk_node_signing_key_password
         if not osk_password:
             abort_with_error(
-                400,
                 "OSK password is required for OSK nodes.",
+                ErrorCode.INTERNAL_ERROR,
             )
         lightspark_client.recover_node_signing_key(config.node_id, osk_password)
         return
@@ -29,7 +29,8 @@ def load_signing_key(lightspark_client: LightsparkSyncClient, config: Config):
     master_seed = config.get_remote_signing_node_master_seed()
     if not master_seed:
         abort_with_error(
-            400, "Remote signing master seed is required for remote signing nodes."
+            "Remote signing master seed is required for remote signing nodes.",
+            ErrorCode.INTERNAL_ERROR,
         )
     lightspark_client.provide_node_master_seed(
         config.node_id, master_seed, node.bitcoin_network

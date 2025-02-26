@@ -7,17 +7,18 @@ from flask import Flask, Response, current_app
 from flask import request as flask_request
 from lightspark import LightsparkSyncClient as LightsparkClient
 from uma import (
+    ErrorCode,
     INonceCache,
+    InvalidRequestException,
     InvoiceCurrency,
     IPublicKeyCache,
     IUmaInvoiceCreator,
     KycStatus,
-    LnurlpRequest,
     LnurlpResponse,
     PayReqResponse,
     PayRequest,
     PubkeyResponse,
-    UnsupportedVersionException,
+    UmaException,
     compliance_from_payer_data,
     create_counterparty_data_options,
     create_pay_req_response,
@@ -41,7 +42,6 @@ from uma_vasp.currencies import (
     RECEIVER_FEES_MSATS,
 )
 from uma_vasp.lightspark_helpers import get_node
-from uma_vasp.uma_exception import UmaException
 from uma_vasp.user import User
 from uma_vasp.user_service import IUserService
 
@@ -69,23 +69,21 @@ class ReceivingVasp:
         print(
             f"Handling LNURLP query for user {username}. Request URL: {flask_request.url}"
         )
-        lnurlp_request: LnurlpRequest
         try:
             lnurlp_request = parse_lnurlp_request(flask_request.url)
-        except UnsupportedVersionException as e:
-            raise e
+        except UmaException:
+            raise
         except Exception as e:
-            print(f"Invalid UMA lnurlp request: {e}")
             raise UmaException(
-                f"Invalid UMA lnurlp request: {e}",
-                status_code=400,
+                f"Error parsing LNURLP request: {str(e)}",
+                error_code=ErrorCode.PARSE_LNURLP_REQUEST_ERROR,
             ) from e
 
         user = self.user_service.get_user_from_uma_user_name(username)
         if not user:
             raise UmaException(
                 f"Cannot find user {lnurlp_request.receiver_address}",
-                status_code=404,
+                error_code=ErrorCode.USER_NOT_FOUND,
             )
 
         if not lnurlp_request.is_uma_request():
@@ -96,7 +94,7 @@ class ReceivingVasp:
         ):
             raise UmaException(
                 f"Cannot accept transactions from vasp {lnurlp_request.vasp_domain}",
-                status_code=403,
+                error_code=ErrorCode.COUNTERPARTY_NOT_ALLOWED,
             )
 
         sender_vasp_pubkey_response: PubkeyResponse
@@ -107,7 +105,7 @@ class ReceivingVasp:
         except Exception as e:
             raise UmaException(
                 f"Cannot fetch public key for vasp {lnurlp_request.vasp_domain}: {e}",
-                status_code=424,
+                error_code=ErrorCode.COUNTERPARTY_PUBKEY_FETCH_ERROR,
             ) from e
 
         # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
@@ -119,10 +117,12 @@ class ReceivingVasp:
                     other_vasp_pubkeys=sender_vasp_pubkey_response,
                     nonce_cache=self.nonce_cache,
                 )
+            except UmaException:
+                raise
             except Exception as e:
                 raise UmaException(
-                    f"Invalid signature: {e}",
-                    status_code=400,
+                    f"Error verifying LNURLP signature: {str(e)}",
+                    error_code=ErrorCode.INVALID_SIGNATURE,
                 ) from e
 
         metadata = self._create_metadata(user)
@@ -172,7 +172,7 @@ class ReceivingVasp:
         if not user:
             raise UmaException(
                 f"Cannot find user {user_id}",
-                status_code=404,
+                error_code=ErrorCode.USER_NOT_FOUND,
             )
 
         request: PayRequest
@@ -182,12 +182,14 @@ class ReceivingVasp:
                 request = parse_pay_request(request_data)
             else:
                 request = PayRequest.from_request_params(flask_request.args.to_dict())
+        except InvalidRequestException:
+            raise
         except Exception as e:
-            print(f"Invalid UMA pay request: {e}")
             raise UmaException(
-                f"Invalid UMA pay request: {e}",
-                status_code=400,
+                f"Invalid pay request: {str(e)}",
+                error_code=ErrorCode.PARSE_PAYREQ_REQUEST_ERROR,
             ) from e
+
         if not request.is_uma_request():
             return self._handle_non_uma_pay_request(request, user).to_dict()
 
@@ -198,7 +200,7 @@ class ReceivingVasp:
         ):
             raise UmaException(
                 f"Cannot accept transactions from vasp {vasp_domain}",
-                status_code=403,
+                error_code=ErrorCode.COUNTERPARTY_NOT_ALLOWED,
             )
 
         # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
@@ -221,7 +223,7 @@ class ReceivingVasp:
         if msats_per_currency_unit is None:
             raise UmaException(
                 f"Currency code {receiving_currency_code} in the pay request is not supported. We support only {','.join(str(currency_code) for currency_code in MSATS_PER_UNIT)}.",
-                status_code=400,
+                error_code=ErrorCode.INVALID_CURRENCY,
             )
         receiver_fees_msats = RECEIVER_FEES_MSATS[receiving_currency_code]
 
@@ -268,7 +270,7 @@ class ReceivingVasp:
         if not user:
             raise UmaException(
                 f"Cannot find user {user_id}",
-                status_code=404,
+                error_code=ErrorCode.USER_NOT_FOUND,
             )
 
         amount = flask_request.json.get("amount")
@@ -284,7 +286,7 @@ class ReceivingVasp:
         if len(receiver_currencies) == 0:
             raise UmaException(
                 f"User does not support currency {currency_code}",
-                status_code=400,
+                error_code=ErrorCode.INVALID_CURRENCY,
             )
         currency = receiver_currencies[0]
 
@@ -326,7 +328,7 @@ class ReceivingVasp:
         if not user:
             raise UmaException(
                 f"Cannot find user {user_id}",
-                status_code=404,
+                error_code=ErrorCode.USER_NOT_FOUND,
             )
 
         amount = flask_request.json.get("amount")
@@ -342,7 +344,7 @@ class ReceivingVasp:
         if len(receiver_currencies) == 0:
             raise UmaException(
                 f"User does not support currency {currency_code}",
-                status_code=400,
+                error_code=ErrorCode.INVALID_CURRENCY,
             )
         currency = receiver_currencies[0]
 
@@ -370,7 +372,7 @@ class ReceivingVasp:
         if not sender_uma:
             raise UmaException(
                 "Cannot find sender_uma",
-                status_code=404,
+                error_code=ErrorCode.INVALID_INPUT,
             )
 
         invoice = create_uma_invoice(
@@ -403,7 +405,7 @@ class ReceivingVasp:
         if not res.ok:
             raise UmaException(
                 f"Error sending pay request: {res.status_code} {res.text}",
-                status_code=424,
+                error_code=ErrorCode.PAYREQ_REQUEST_FAILED,
             )
 
         return Response(status=200)
