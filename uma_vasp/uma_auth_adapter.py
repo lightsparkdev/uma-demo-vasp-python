@@ -15,6 +15,7 @@ from lightspark.objects.TransactionType import (
     TransactionType as LightsparkTransactionType,
 )
 from lightspark.utils.currency_amount import amount_as_msats
+from uma import ErrorCode
 from uma.protocol.currency import Currency
 from uma_auth.models.currency import Currency as UmaCurrency
 from uma_auth.models.currency_preference import CurrencyPreference
@@ -105,7 +106,7 @@ class UmaAuthAdapter:
 
         node = self.lightspark_client.get_entity(self.config.node_id, LightsparkNode)
         if not node:
-            abort_with_error(500, "Error getting node.")
+            abort_with_error("Error getting node.", ErrorCode.INTERNAL_ERROR)
         network = "mainnet"
         if node.bitcoin_network == BitcoinNetwork.TESTNET:
             network = "testnet"
@@ -142,24 +143,29 @@ class UmaAuthAdapter:
         # TODO: pay for this particular user when we have a ledger.
         request_json = flask_request.get_json()
         if not request_json:
-            abort_with_error(400, "Request must be JSON")
+            abort_with_error("Request must be JSON", ErrorCode.INVALID_REQUEST_FORMAT)
         try:
             request_data = PayInvoiceRequest.from_dict(request_json)
         except Exception as e:
-            abort_with_error(400, f"Invalid request: {e}")
+            abort_with_error(f"Invalid request: {e}", ErrorCode.INVALID_REQUEST_FORMAT)
 
         invoice = request_data.invoice
         try:
             bolt11 = bolt11_decode(invoice)
         except Exception as e:
-            abort_with_error(400, f"Invalid invoice: {e}")
+            abort_with_error(f"Invalid invoice: {e}", ErrorCode.INVALID_INVOICE)
 
         amount = request_data.amount
         if not bolt11.amount_msat:
             if not amount:
-                abort_with_error(400, "Need to provide amount for 0 amount invoice.")
+                abort_with_error(
+                    "Need to provide amount for 0 amount invoice.",
+                    ErrorCode.INVALID_INPUT,
+                )
         elif amount and amount != bolt11.amount_msat:
-            abort_with_error(400, "Amount does not match invoice amount.")
+            abort_with_error(
+                "Amount does not match invoice amount.", ErrorCode.INVALID_INPUT
+            )
 
         load_signing_key(self.lightspark_client, self.config)
         payment_result = self.lightspark_client.pay_invoice(
@@ -170,12 +176,12 @@ class UmaAuthAdapter:
             amount_msats=amount,
         )
         if not payment_result:
-            abort_with_error(500, "Payment failed.")
+            abort_with_error("Payment failed.", ErrorCode.INTERNAL_ERROR)
         payment = self.sending_vasp.wait_for_payment_completion(payment_result)
         if payment.status != TransactionStatus.SUCCESS:
             abort_with_error(
-                500,
                 f"Payment failed. {payment.failure_message}",
+                ErrorCode.INTERNAL_ERROR,
             )
 
         return PayInvoiceResponse(
@@ -224,11 +230,13 @@ class UmaAuthAdapter:
             payment_hash
         )
         if not invoice and (not payments or len(payments) == 0):
-            abort_with_error(404, "Invoice not found.")
+            abort_with_error("Invoice not found.", ErrorCode.REQUEST_NOT_FOUND)
         if not invoice:
             payment_request = payments[0].payment_request_data
             if not payment_request:
-                abort_with_error(404, "No payment_request for this payment.")
+                abort_with_error(
+                    "No payment_request for this payment.", ErrorCode.REQUEST_NOT_FOUND
+                )
             decoded_bolt11 = bolt11_decode(payment_request.encoded_payment_request)
         is_outgoing = payments and len(payments) > 0
         resolved_at = payments[0].resolved_at if is_outgoing else None
@@ -275,10 +283,10 @@ class UmaAuthAdapter:
         # TODO: only allow user to look up their own balance based on a ledger.
         node = self.lightspark_client.get_entity(self.config.node_id, LightsparkNode)
         if not node:
-            abort_with_error(500, "Error getting node.")
+            abort_with_error("Error getting node.", ErrorCode.INTERNAL_ERROR)
 
         if not node.balances:
-            abort_with_error(500, "No balances found for node.")
+            abort_with_error("No balances found for node.", ErrorCode.INTERNAL_ERROR)
 
         return GetBalanceResponse(
             balance=amount_as_msats(node.balances.owned_balance),
@@ -323,7 +331,7 @@ class UmaAuthAdapter:
         # TODO: only allow user to look up their own transactions based on a ledger.
         node = self.lightspark_client.get_entity(self.config.node_id, LightsparkNode)
         if not node:
-            abort_with_error(500, "Error getting node.")
+            abort_with_error("Error getting node.", ErrorCode.INTERNAL_ERROR)
 
         ls_types = [
             LightsparkTransactionType.INCOMING_PAYMENT,
@@ -408,9 +416,11 @@ class UmaAuthAdapter:
             or not receiving_currency_code
             or not locked_currency_amount
         ):
-            abort_with_error(400, "Missing required parameters")
+            abort_with_error(
+                "Missing required parameters", ErrorCode.MISSING_REQUIRED_UMA_PARAMETERS
+            )
         if not locked_currency_amount.isnumeric():
-            abort_with_error(400, "Invalid locked currency amount")
+            abort_with_error("Invalid locked currency amount", ErrorCode.INVALID_INPUT)
         if not is_sender_locked and locked_currency_side.lower() != "receiving":
             abort_with_error(400, "Invalid locked currency side")
         uma_lookup_result = self.sending_vasp.handle_uma_lookup(receiving_uma)
@@ -428,7 +438,10 @@ class UmaAuthAdapter:
         )
 
         if not receiving_currency:
-            abort_with_error(400, "Receiver does not accept the specified currency")
+            abort_with_error(
+                "Receiver does not accept the specified currency",
+                ErrorCode.INVALID_CURRENCY,
+            )
 
         if (
             is_sender_locked
@@ -436,7 +449,8 @@ class UmaAuthAdapter:
             and sending_currency_code != "SAT"
         ):
             abort_with_error(
-                400, "Sending currencies besides BTC are not yet supported"
+                "Sending currencies besides BTC are not yet supported",
+                ErrorCode.INVALID_CURRENCY,
             )
 
         uma_payreq_result = self.sending_vasp.handle_uma_payreq(
@@ -483,16 +497,18 @@ class UmaAuthAdapter:
         user = self._get_calling_user_or_abort()
         quote = self.quote_cache.get(payment_hash)
         if not quote:
-            abort_with_error(404, "Quote not found")
+            abort_with_error("Quote not found", ErrorCode.QUOTE_NOT_FOUND)
         if quote.user_id != user.id:
-            abort_with_error(403, "Quote does not belong to user")
+            abort_with_error("Quote does not belong to user", ErrorCode.FORBIDDEN)
         if quote.quote.expires_at < datetime.now().timestamp():
-            abort_with_error(400, "Quote expired")
+            abort_with_error("Quote expired", ErrorCode.QUOTE_EXPIRED)
 
         payment = self.sending_vasp.handle_send_payment(quote.callback_uuid)
         preimage = payment.get("preimage")
         if not preimage:
-            abort_with_error(500, "Payment succeeded, but missing preimage")
+            abort_with_error(
+                "Payment succeeded, but missing preimage", ErrorCode.INTERNAL_ERROR
+            )
 
         self.quote_cache.pop(payment_hash)
 
@@ -511,7 +527,8 @@ class UmaAuthAdapter:
 
         if request_data.sending_currency_code in ("BTC", "SAT"):
             abort_with_error(
-                400, "Sending currencies besides BTC/SAT are not yet supported"
+                "Sending currencies besides BTC/SAT are not yet supported",
+                ErrorCode.INVALID_CURRENCY,
             )
 
         amount = request_data.sending_currency_amount
@@ -537,7 +554,10 @@ class UmaAuthAdapter:
             None,
         )
         if len(receiving_currencies) > 0 and not receiving_currency:
-            abort_with_error(400, "Receiver does not accept the specified currency")
+            abort_with_error(
+                "Receiver does not accept the specified currency",
+                ErrorCode.INVALID_CURRENCY,
+            )
 
         if not receiving_currency:
             receiving_currency = CURRENCIES[receiving_currency_code].to_dict()
@@ -576,7 +596,9 @@ class UmaAuthAdapter:
 
         preimage = payment.get("preimage")
         if not preimage:
-            abort_with_error(500, "Payment succeeded, but missing preimage")
+            abort_with_error(
+                "Payment succeeded, but missing preimage", ErrorCode.INTERNAL_ERROR
+            )
 
         return PayToAddressResponse(preimage=preimage, quote=quote).to_dict()
 
@@ -589,10 +611,10 @@ class UmaAuthAdapter:
 
     def _get_calling_user_or_abort(self) -> User:
         user = self.user_service.get_calling_user_from_request(
-            flask_request.url, flask_request.headers
+            flask_request.url, dict(flask_request.headers)
         )
         if not user:
-            abort_with_error(401, "Unauthorized")
+            abort_with_error("Unauthorized", ErrorCode.USER_NOT_FOUND)
         return user
 
 
@@ -609,9 +631,11 @@ def register_routes(app: Flask, uma_auth_adapter: UmaAuthAdapter):
     def handle_pay_invoice():
         request_data = flask_request.get_json()
         if not request_data:
-            abort_with_error(400, "Request must be JSON")
+            abort_with_error("Request must be JSON", ErrorCode.INVALID_REQUEST_FORMAT)
         if "invoice" not in request_data:
-            abort_with_error(400, "No invoice in request")
+            abort_with_error(
+                "No invoice in request", ErrorCode.MISSING_REQUIRED_UMA_PARAMETERS
+            )
         return uma_auth_adapter.handle_pay_invoice(
             request_data["invoice"], request_data.get("amount")
         )
@@ -627,7 +651,10 @@ def register_routes(app: Flask, uma_auth_adapter: UmaAuthAdapter):
     @app.route("/umanwc/receiver/<receiver_type>/<receiver_uma>")
     def handle_lookup_user(receiver_type: str, receiver_uma: str):
         if receiver_type != "lud16":
-            abort_with_error(400, "Only UMA receivers are supported")
+            abort_with_error(
+                "Only UMA receivers are supported",
+                ErrorCode.MISSING_REQUIRED_UMA_PARAMETERS,
+            )
         return uma_auth_adapter.handle_user_lookup(receiver_uma)
 
     @app.route("/umanwc/quote/lud16")
@@ -645,7 +672,7 @@ def register_routes(app: Flask, uma_auth_adapter: UmaAuthAdapter):
     @app.route("/umanwc/payments/keysend", methods=["POST"])
     def handle_pay_keysend():
         # TODO: Implement keysend payments.
-        return abort_with_error(501, "Keysend Not implemented")
+        return abort_with_error("Keysend Not implemented", ErrorCode.NOT_IMPLEMENTED)
 
     @app.route("/umanwc/info")
     def handle_info():

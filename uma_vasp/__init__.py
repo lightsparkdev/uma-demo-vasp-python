@@ -10,8 +10,9 @@ from uma import (
     InMemoryNonceCache,
     InMemoryPublicKeyCache,
     InvalidSignatureException,
+    ErrorCode,
     PostTransactionCallback,
-    UnsupportedVersionException,
+    UmaException,
     create_pubkey_response,
     fetch_public_key_for_vasp,
     verify_post_transaction_callback_signature,
@@ -35,7 +36,6 @@ from uma_vasp.uma_auth_adapter import (
     register_routes as register_uma_auth_adapter_routes,
 )
 from uma_vasp.uma_configuration import get_uma_configuration_json
-from uma_vasp.uma_exception import UmaException
 from uma_vasp.user import User
 
 
@@ -110,7 +110,7 @@ def create_app(config_override: Optional[Config] = None, lightspark_client=None)
             tx_callback = PostTransactionCallback.from_json(json.dumps(request.json))
         except Exception as e:
             raise UmaException(
-                status_code=400, message=f"Error parsing UTXO callback: {e}"
+                f"Error parsing UTXO callback: {e}", error_code=ErrorCode.INVALID_INPUT
             ) from e
 
         print(tx_callback.to_json())
@@ -120,14 +120,9 @@ def create_app(config_override: Optional[Config] = None, lightspark_client=None)
                 vasp_domain=tx_callback.vasp_domain,
                 cache=pubkey_cache,
             )
-            try:
-                verify_post_transaction_callback_signature(
-                    tx_callback, other_vasp_pubkeys, nonce_cache
-                )
-            except InvalidSignatureException as e:
-                raise UmaException(
-                    f"Error verifying post-tx callback signature: {e}", 424
-                ) from e
+            verify_post_transaction_callback_signature(
+                tx_callback, other_vasp_pubkeys, nonce_cache
+            )
 
         return "OK"
 
@@ -210,12 +205,8 @@ def create_app(config_override: Optional[Config] = None, lightspark_client=None)
         return f"Logged in as {user.get_uma_address(config)}."
 
     @app.errorhandler(UmaException)
-    def invalid_api_usage(e):
-        return jsonify(e.to_dict()), e.status_code
-
-    @app.errorhandler(UnsupportedVersionException)
-    def unsupported_version(e):
-        return jsonify(json.loads(e.to_json())), 412
+    def handle_uma_exception(e):
+        return jsonify(json.loads(e.to_json())), e.to_http_status_code()
 
     register_receiving_vasp_routes(app, receiving_vasp)
     register_sending_vasp_routes(app, sending_vasp)

@@ -1,10 +1,11 @@
-from typing import NoReturn, Optional
+from typing import NoReturn
 
-from uma_vasp.uma_exception import UmaException
+from uma import ErrorCode, UmaException
 
 
 def abort_with_error(
-    status_code: int, reason: str, code: Optional[str] = None
+    reason: str,
+    error_code: ErrorCode,
 ) -> NoReturn:
-    print(f"Aborting with error {status_code}: {reason}")
-    raise UmaException(reason, status_code, code)
+    print(f"Aborting with error {error_code.value.http_status_code}: {reason}")
+    raise UmaException(reason, error_code)
