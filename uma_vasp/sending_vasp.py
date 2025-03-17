@@ -252,7 +252,10 @@ class SendingVasp:
             cache=self.vasp_pubkey_cache,
         )
 
-        verify_uma_invoice_signature(invoice, receiver_vasp_pubkey)
+        # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
+        is_testing = current_app.config.get("TESTING", False)
+        if not is_testing:
+            verify_uma_invoice_signature(invoice, receiver_vasp_pubkey)
 
         receiving_currency = CURRENCIES[invoice.receving_currency.code]
 
@@ -472,7 +475,9 @@ class SendingVasp:
             )
 
         print(f"payreq_response: {payreq_response.to_dict()}")
-        if uma_version == 1:
+        # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
+        is_testing = current_app.config.get("TESTING", False)
+        if uma_version == 1 and not is_testing:
             verify_pay_req_response_signature(
                 user.get_uma_address(self.config),
                 receiver_uma,
@@ -515,7 +520,8 @@ class SendingVasp:
 
         amount_receiving_currency = (
             payreq_response.payment_info.amount
-            if payreq_response.payment_info and payreq_response.payment_info.amount
+            if payreq_response.payment_info
+            and payreq_response.payment_info.amount is not None
             else round(amount_as_msats(invoice_data.amount) / 1000)
         )
 
@@ -634,7 +640,10 @@ class SendingVasp:
             vasp_domain=receiving_domain,
             cache=self.vasp_pubkey_cache,
         )
-        verify_uma_invoice_signature(invoice, receiver_vasp_pubkey)
+        # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
+        is_testing = current_app.config.get("TESTING", False)
+        if not is_testing:
+            verify_uma_invoice_signature(invoice, receiver_vasp_pubkey)
         receiving_currency = CURRENCIES[invoice.receving_currency.code]
         if not receiving_currency:
             abort_with_error(
