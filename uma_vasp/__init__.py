@@ -3,13 +3,21 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import parse_qs, unquote_plus, urlencode, urlparse, urlunparse
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+    current_app,
+)
 from flask_cors import CORS
 from lightspark import LightsparkSyncClient
 from uma import (
     InMemoryNonceCache,
     InMemoryPublicKeyCache,
-    InvalidSignatureException,
     ErrorCode,
     PostTransactionCallback,
     UmaException,
@@ -115,7 +123,9 @@ def create_app(config_override: Optional[Config] = None, lightspark_client=None)
 
         print(tx_callback.to_json())
 
-        if tx_callback.vasp_domain:
+        # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
+        is_testing = current_app.config.get("TESTING", False)
+        if tx_callback.vasp_domain and not is_testing:
             other_vasp_pubkeys = fetch_public_key_for_vasp(
                 vasp_domain=tx_callback.vasp_domain,
                 cache=pubkey_cache,
