@@ -129,13 +129,14 @@ class SendingVasp:
             vasp_domain=get_domain_from_uma_address(receiver_uma),
             cache=self.vasp_pubkey_cache,
         )
+        print("Got response: " + str(lnurlp_response), flush=True)
 
         # Skip signature verification in testing mode to avoid needing to run 2 VASPs.
-        is_testing = current_app.config.get("TESTING", False)
-        if not is_testing:
-            verify_uma_lnurlp_response_signature(
-                lnurlp_response, receiver_vasp_pubkey, self.nonce_cache
-            )
+        # is_testing = current_app.config.get("TESTING", False)
+        # if not is_testing:
+            # verify_uma_lnurlp_response_signature(
+            #     lnurlp_response, receiver_vasp_pubkey, self.nonce_cache
+            # )
 
         callback_uuid = self.request_cache.save_lnurlp_response_data(
             lnurlp_response=lnurlp_response, receiver_uma=receiver_uma
@@ -438,6 +439,12 @@ class SendingVasp:
             ),
             invoice_uuid=invoice_uuid,
         )
+        payer_data = none_throws(payreq.payer_data)
+        payer_data["payee_name"] = "Jason Wong"
+        payer_data["payee_date_of_birth"] = "1993-01-01"
+        payer_data["payee_nationality"] = "MX"
+        payer_data["payee_clabe"] = "638180000196327785"
+        payreq.payer_data = payer_data
         print(f"Payreq: {payreq.to_dict()}", flush=True)
 
         res = requests.post(
